@@ -127,13 +127,16 @@ document.getElementById("labelToggle").addEventListener("change", saveSettings);
 document.getElementById("storeLocationBtn").addEventListener("click", saveCurrentViewAsDefault);
 
 function saveSettings() {
+  // Load existing settings or start with empty object
+  const settings = JSON.parse(localStorage.getItem("mapSettings")) || {};
 
-  const settings = {
-    colorScheme: document.getElementById("colorSchemeSelect").value,
-    markerStyle: document.getElementById("markerStyleSelect").value,
-    showLabels: document.getElementById("labelToggle").checked,
-    labelFontSize: labelFontSizeInput.value
-  };
+  // Update only relevant keys
+  settings.colorScheme = document.getElementById("colorSchemeSelect").value;
+  settings.markerStyle = document.getElementById("markerStyleSelect").value;
+  settings.showLabels = document.getElementById("labelToggle").checked;
+  settings.labelFontSize = labelFontSizeInput.value;
+
+  // Save back to localStorage
   localStorage.setItem("mapSettings", JSON.stringify(settings));
 }
 

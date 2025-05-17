@@ -1,0 +1,1 @@
+magick convert +append dark_green_marker.png green_marker.png yellow_marker.png orange_marker.png red_marker.png marker-atlas_green.png

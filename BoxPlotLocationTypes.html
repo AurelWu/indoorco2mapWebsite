@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Supermarket CO₂ Levels</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chroma-js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@sgratzl/chartjs-chart-boxplot@4.4.1/build/index.umd.min.js"></script>
+    <script src="BoxPlotLocationTypes.js" defer></script>
+    <style>   
+        #osmTagBoxplotChart {
+    max-height: 800px; /* Adjust this value as needed */
+    width: 100%; /* Makes the canvas responsive */
+}
+    </style>
+</head>
+<body>
+    <canvas id="osmTagBoxplotChart" width="400" height="800"></canvas>    
+    <p>There might be a large selection bias for some categories, especially restaurants and others where masking is impractical, where contributors mostly frequent locations with good air quality.</p>
+</body>
+
+</html>

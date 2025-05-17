@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About the Indoor CO2 Map Project</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }
+        .container {
+            width: 80%;
+            max-width: 1200px;
+            margin: 20px auto;
+            padding: 20px;
+            background-color: #fff;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+        p {
+            line-height: 1.6;
+            color: #555;
+        }
+        .links {
+            margin-top: 20px;
+        }
+        .links a {
+            display: block;
+            color: #1a73e8;
+            text-decoration: none;
+            margin: 10px 0;
+        }
+        .google-play-badge {
+            display: inline-block;
+            margin-top: 10px;
+            width: 180px; /* Adjust the width as needed */
+            height: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Why measure CO2-Levels indoors?</h1>
+        <p>The goal of the Indoor CO2-Map is to create a free and comprehensive crowd sourced Dataset about CO2-Levels in all kinds of non-residential buildings, i.e. shops, hospitals, cinemas and many more. The concentration of CO2 Levels is in most settings a reliable indicator for the share of exhaled air, that is air which has been exhaled by persons. A higher concentration correlates with a higher risk of inhaling aerosols containing infectious agents.</p>
+        <p>By collecting these data, people who want to reduce their risk of infections can make informed decisions about their everyday choices. If the amount of measurements becomes high enough it might also serve as data source or starting point for scientific analysis.</p>
+        <p>It might also allow initiatives campaigning for better indoor air quality to strengthen their arguments by showing the variability in air quality in different buildings of the same type which indicates both the feasibility to ensure good air as well as the failure in many cases to do so.</p>
+        <p>Anyone who has a mobile phone and a supported mobile CO2-Monitor can participate in the data collection. Currently the Aranet4, Airvalent, AirSpot and Inkbird IAM-T1 Sensors are supported</p>
+        <p>Every single Measurement is useful, both in previously unmeasured locations as well as in locations measured. If you happen to have a compatible monitor you are heartily invited to join.</p>
+        <p>The Android and iPhone App Versions can be downloaded below:</p>
+        <a class="google-play-badge" href='https://play.google.com/store/apps/details?id=com.aurelwu.indoorairqualitycollector&pcampaignid=pcampaignidMKT-Other-global-all-co-prtnr-py-PartBadge-Mar2515-1'>
+            <img alt='Get it on Google Play' src='https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png' width='200'/>
+        </a>
+
+    <br></br>
+    <a href="https://apps.apple.com/us/app/indoorco2map-data-collector/id6504560820?itscg=30200&itsct=apps_box_badge&mttnsubad=6504560820" style="display: inline-block;">
+    <img src="https://toolbox.marketingtools.apple.com/api/v2/badges/download-on-the-app-store/black/en-us?releaseDate=1745539200" alt="Download on the App Store" style="width: 246px; height: 82px; vertical-align: middle; object-fit: contain;" />
+    </a>
+
+<p>If you think this project is worthy of your support you can do so via the following gofundme: <a href="https://www.gofundme.com/f/indoorco2mapcom-collectively-measuring-indoor-air-quality" target="_blank">gofundme for IndoorCO2Map</a>. </p>
+
+    </div>
+</body>
+</html>

@@ -1,0 +1,254 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Indoor-CO₂ Atlas</title>
+  <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+
+  <link rel="stylesheet" href="./css/styles.css" />
+  <link href="https://unpkg.com/maplibre-gl@3.4.1/dist/maplibre-gl.css" rel="stylesheet" />
+
+  
+  <!-- MapLibre GL -->
+  <script src="https://unpkg.com/maplibre-gl@3.4.1/dist/maplibre-gl.js"></script>
+  <!-- Deck.gl -->
+  <script src="https://cdn.jsdelivr.net/npm/deck.gl@8.9.28/dist.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+</head>
+<body>
+
+<div id="aboutOverlay" style="display: none; position: fixed; top: 0; left: 0; 
+  width: 100%; height: 100%; background: rgba(0, 0, 0, 0.7); 
+  z-index: 9999; overflow: auto; padding: 40px; box-sizing: border-box;">
+  
+  <div id="aboutContent" style="background: #fff; margin: auto; padding: 20px; max-width: 800px; border-radius: 8px; position: relative;">
+    <button id="closeAbout" style="position: absolute; top: 10px; right: 10px; font-size: 20px;">✖</button>
+    <!-- About content will be injected here -->
+  </div>
+</div>
+
+      <nav>
+        <ul class="navbar">
+
+<li class="navbar-icon">
+    <a href="https://indoorco2map.com">
+        <img src="images/icon512_512.png" alt="Indoor CO2 Map Logo" class="navbar-logo">
+    </a>
+</li>
+
+<div class="dropdown">
+  <button onclick="openDropdown()" class="dropbtn">Menu</button>
+  <div id="myDropdown" class="dropdown-content">
+<a href="https://indoorco2map.com/transit.html">Public Transit</a>
+
+    <a href="https://www.indoorco2map.com/BoxPlotLocationTypes.html">Results by Location Type</a>
+    <a href="https://www.indoorco2map.com/supermarketdetails.html">Supermarket Charts (Germany)</a>
+    <a href="https://indoorco2map.com/stats.html">Activity Stats</a>
+    <a href="https://indoorco2map.com/frequencyMapNUTS1.html">Activity Map by NUTS1 Region</a>    
+    <a href="https://www.indoorco2map.com/allSupermarkets.html">All Supermarkets (Germany)</a>
+     <a href="#" onclick="DownloadData('https://indoorco2map.com/chartdata/IndoorCO2MapData.zip', 'IndoorCO2MapData.zip');">
+        <i class="fas fa-download"></i> Download Data
+    </a>
+  </div>
+</div>
+<div class="gpsButtonWrapper">
+    <button id="centerMapBtn">
+        <i class="fas fa-location-arrow"></i> 
+        
+    </button>
+
+</div>
+<div class="worldButtonWrapper">
+	<button id="zoomToWorldBtn">
+        	<i class="fas fa-globe"></i> 
+	</button>
+</div>
+<div class="aboutButtonWrapper">
+	<button id="aboutBtn">
+        	<i class="fas fa-info"></i> 
+	</button>
+</div>
+</ul>
+	
+    </nav>
+  <div id="histogramContainer" class="hidden">
+  <canvas id="histogramCanvas"></canvas>
+</div>
+
+  <div id="map"></div>
+  <div id="loading-overlay">
+  <div id="loading-spinner">Loading data...</div>
+  <div id="loading-error" style="display: none;">
+    Failed to load data.<br>
+    <button id="retry-button">Retry</button>
+  </div>
+</div>
+<div id="legend">
+  <button id="legend-toggle">▼</button>
+  <div id="legend-content"></div>
+</div>
+<div id="filter-container">
+  <button id="filter-toggle">► Filters</button>
+  <div id="filter-content">
+
+    <!-- Histogram Toggle Button -->
+    <button id="toggleHistogram" title="Show/Hide Histogram">📊 Show Histogram</button>
+    <div class="date-range-container"> 
+      <div class="date-range-row">
+        <label for="dateFrom">From:</label>
+        <input type="date" id="dateFrom">
+      </div>
+      <div class="date-range-row">
+        <label for="dateTo">To:</label>
+        <input type="date" id="dateTo">
+      </div>
+    </div>
+    <!-- Country Dropdown -->
+    <div class="filter-dropdown">
+      <select id="countryFilter">
+        <option value="">All Countries</option>
+        <option value="Germany">Germany</option>
+        <option value="France">France</option>
+        <option value="USA">USA</option>
+      </select>
+    </div>
+
+    <!-- Location Type Dropdown -->
+    <div class="filter-dropdown">
+      <select id="locationTypeFilter">
+        <option value="">All Locations</option>
+        <option value="Restaurant">Restaurant</option>
+        <option value="Hospital">Hospital</option>
+        <option value="School">School</option>
+        <option value="Museum">Museum</option>
+      </select>
+    </div>
+   
+    <input type="text" id="namefilterInput" placeholder="Filter by Name" class="name-filter">
+  </div>
+</div>
+
+<!-- Settings Gear Icon -->
+<div id="settings-icon">⚙️</div>
+
+<!-- Settings Panel -->
+<div id="settings-panel" class="hidden">
+  <h3>Settings</h3>
+
+  <label for="markerSizeSlider">Marker Size</label>
+  <input type="range" id="markerSizeSlider" min="0.1" max="2" step="0.01" value="1.0">
+
+  <label for="colorSchemeSelect">Color Scheme</label>
+  <select id="colorSchemeSelect">
+    <option value="BlueYellowRed">BlueYellowRed</option>
+    <option value="GreenYellowRed">GreenYellowRed</option>
+  </select>
+
+  <label for="markerStyleSelect">Marker Style</label>
+  <select id="markerStyleSelect">
+    <option value="style1">style1</option>
+    <option value="style2">style2</option>
+  </select>
+
+  <label>
+  <input type="checkbox" id="labelToggle" checked>
+  Show Labels
+  </label>
+  <label for="labelFontSize">Label Font Size</label>
+  <input type="number" id="labelFontSize" min="8" max="30" step="1" value="11">
+  <div style="margin-top: 8px;">
+  <button id="storeLocationBtn">Save current View as Default</button>
+</div>
+</div>
+<script>  
+
+  const filterToggle = document.getElementById("filter-toggle");
+  const filterContent = document.getElementById("filter-content");
+
+  filterToggle.addEventListener("click", () => {
+    const isVisible = window.getComputedStyle(filterContent).display !== "none";
+    filterContent.style.display = isVisible ? "none" : "block";
+    filterToggle.textContent = isVisible ? "► Filters" : "▼";
+  });
+
+  /* When the user clicks on the button,
+toggle between hiding and showing the dropdown content */
+function openDropdown() {
+  document.getElementById("myDropdown").classList.toggle("show");
+}
+
+// Close the dropdown menu if the user clicks outside of it
+window.onclick = function(event) {
+  if (!event.target.matches('.dropbtn')) {
+    var dropdowns = document.getElementsByClassName("dropdown-content");
+    var i;
+    for (i = 0; i < dropdowns.length; i++) {
+      var openDropdown = dropdowns[i];
+      if (openDropdown.classList.contains('show')) {
+        openDropdown.classList.remove('show');
+      }
+    }
+  }
+}
+
+function DownloadData(url, fileName) {
+    fetch(url)
+        .then(res => res.blob())
+        .then(blob => {
+            // Create a link element and set attributes
+            const aElement = document.createElement("a");
+            aElement.setAttribute("download", fileName);
+            const href = URL.createObjectURL(blob);
+            aElement.href = href;
+            aElement.setAttribute("target", "_blank");
+
+            // Trigger the download
+            aElement.click();
+
+            // Clean up by revoking the Object URL
+            URL.revokeObjectURL(href);
+        })
+        .catch(error => {
+            console.error('Error fetching the file:', error);
+        });
+}
+
+
+const aboutBtn = document.getElementById("aboutBtn");
+const aboutOverlay = document.getElementById("aboutOverlay");
+const aboutContent = document.getElementById("aboutContent");
+const closeAbout = document.getElementById("closeAbout");
+
+aboutBtn.addEventListener("click", async () => {
+  try {
+    const response = await fetch('about.html');
+    const text = await response.text();
+
+    // Just grab what's inside <body>
+    const bodyContent = text.match(/<body[^>]*>((.|[\n\r])*)<\/body>/im);
+    const innerBody = bodyContent ? bodyContent[1] : text;
+
+    // Insert it into the overlay
+    aboutContent.innerHTML = `<button id="closeAbout" style="position: absolute; top: 10px; right: 10px; font-size: 20px;">✖</button>` + innerBody;
+    
+    // Reattach close listener because content replaced
+    document.getElementById("closeAbout").addEventListener("click", () => {
+      aboutOverlay.style.display = "none";
+    });
+
+    aboutOverlay.style.display = "block";
+      aboutOverlay.style.zIndex = "19999"; 
+  } catch (error) {
+    console.error('Failed to load about.html:', error);
+  }
+});
+
+
+</script>
+  <script type="module" src="./js/main.js"></script>
+<a href="impressum.html" class="impressum-link">Impressum / Datenschutz</a>
+</body>
+</html>

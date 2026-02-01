@@ -346,15 +346,24 @@ document.addEventListener('click', (e) => {
   iconNames = ['blue', 'brightblue', 'yellow', 'orange', 'red'];
 
   async initialize() {
-    this.map = new maplibregl.Map({
-      container: this.containerId,
-      style: this.styleUrl,
-      center: this.center,
-      zoom: this.zoom,
-      pitch: 0,
-      bearing: 0,
-      dragRotate: false
-    });
+    try {
+      this.map = new maplibregl.Map({
+        container: this.containerId,
+        style: this.styleUrl,
+        center: this.center,
+        zoom: this.zoom,
+        pitch: 0,
+        bearing: 0,
+        dragRotate: false
+      });
+    } catch (e) {
+      const errorBody = JSON.parse(e.message);
+      if (errorBody.type === 'webglcontextcreationerror') {
+        throw new Error('This browser or device doesn\'t support WebGL');
+      } else {
+        throw new Error('An unknown issue occured while creating the map');
+      }
+    }
 
     this.map.dragRotate.disable();
     this.map.touchZoomRotate.disableRotation();

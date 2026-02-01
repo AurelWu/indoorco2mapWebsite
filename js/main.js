@@ -240,9 +240,10 @@ function hideLoadingOverlay() {
   if (overlay) overlay.style.display = 'none';
 }
 
-function showLoadingError() {
+function showLoadingError(error) {
   document.getElementById('loading-spinner').style.display = 'none';
   document.getElementById('loading-error').style.display = 'block';
+  document.getElementById('loading-error-message').textContent = error.message;
 }
 
 function setupRetryHandler() {
@@ -443,14 +444,11 @@ function isDefaultViewInUrl() {
   }
 });
 
-await mapManager.initialize();
-    
-
-
 setupRetryHandler();
-initData()
+await mapManager.initialize()
+  .then(() => initData())
   .then(hideLoadingOverlay)
   .catch(error => {
     console.error('Initialization failed:', error);
-    showLoadingError();
+    showLoadingError(error);
   });

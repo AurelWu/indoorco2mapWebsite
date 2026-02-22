@@ -1,0 +1,63 @@
+const schemes = {
+  BlueYellowRed: {
+    normal: {
+      colors: ['#00008b', '#add8e6', '#cdc134', '#ffa500', '#ff0000'],
+      labels: ['<600ppm', '600-799ppm', '800-999ppm', '1000-1199ppm', '>=1200ppm']
+    },
+    iaqs: {
+      colors: ['#00008b', '#ffa500', '#ff0000'],
+      labels: ['<800ppm', '800-1399ppm', '>=1400ppm']
+    }
+  },
+  GreenYellowRed: {
+    normal: {
+      colors: ['#006400', '#90ee90', '#cdc134', '#ffa500', '#ff0000'],
+      labels: ['<600ppm', '600-799ppm', '800-999ppm', '1000-1199ppm', '>=1200ppm']
+    },
+    iaqs: {
+      colors: ['#006400', '#ffa500', '#ff0000'],
+      labels: ['<800ppm', '800-1399ppm', '>=1400ppm']
+    }
+  }
+};
+
+export function createLegend(toggleButtonId = 'legend-toggle') {
+  const toggleButton = document.getElementById(toggleButtonId);
+
+  toggleButton.addEventListener('click', () => {
+    const content = document.getElementById('legend-content');
+    const isVisible = content.style.display !== 'none';
+    content.style.display = isVisible ? 'none' : 'block';
+    toggleButton.textContent = isVisible ? 'Legend ▶' : '▼';
+  });
+}
+
+export function renderLegend(colorScheme, useIaqs) {
+  const legendContent = document.getElementById('legend-content');
+  legendContent.innerHTML = '';
+
+  const scheme = schemes[colorScheme];
+  const mode = useIaqs ? scheme.iaqs : scheme.normal;
+
+  for (let i = 0; i < mode.labels.length; i++) {
+    const item = document.createElement('div');
+    item.className = 'legend-item';
+
+    const box = document.createElement('span');
+    box.style.backgroundColor = mode.colors[i];
+    box.style.width = '25px';
+    box.style.height = '8px';
+    box.style.borderRadius = '3px';
+    box.style.display = 'inline-block';
+    box.style.marginRight = '5px';
+
+    const label = document.createElement('span');
+    label.textContent = mode.labels[i];
+
+    item.appendChild(box);
+    item.appendChild(label);
+    legendContent.appendChild(item);
+  }
+
+  legendContent.style.display = 'block';
+}

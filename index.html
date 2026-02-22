@@ -75,6 +75,7 @@
 	
     </nav>
   <div id="histogramContainer" class="hidden">
+  <button id="closeHistogram" class="histogram-close">✖</button>
   <canvas id="histogramCanvas"></canvas>
 </div>
 
@@ -89,9 +90,17 @@
 </div>
 <div id="legend">
   <button id="legend-toggle">▼</button>
-  <div id="legend-content"></div>
+
+<div id="iaqs-toggle">
+  <label class="iaqs-label">
+    <input type="checkbox" id="useIaqsScore">
+    <img src="images/GO AQS Standard.svg" alt="GO AQS Standard" class="iaqs-logo">
+    <span>GO IAQS Score <br>(Recorded Data)</span>
+  </label>
 </div>
-<div id="filter-container">
+
+  <div id="legend-content"></div>
+</div><div id="filter-container">
   <button id="filter-toggle">► Filters</button>
   <div id="filter-content">
 
@@ -127,8 +136,64 @@
         <option value="Museum">Museum</option>
       </select>
     </div>
+
+<div class="filter-range">
+  <label>
+    <span class="open-iaqs-modal">GO IAQS Score</span><br>
+  (Recorded Data)
+  </label>
+
+
+  <div class="range-wrapper">
+    <div class="range-track" id="scoreTrack"></div>
+
+    <input type="range" id="minScore" min="0" max="10" step="1" value="0">
+    <input type="range" id="maxScore" min="0" max="10" step="1" value="10">
+  </div>
+
+  <div class="range-values">
+    <span id="minScoreValue">0</span> – <span id="maxScoreValue">10</span>
+  </div>
+</div>
    
     <input type="text" id="namefilterInput" placeholder="Filter by Name" class="name-filter">
+  </div>
+</div>
+
+<div id="iaqsOverlay" class="modal-overlay hidden">
+  <div class="modal-card">
+    <button id="closeIaqsOverlay" class="modal-close">✖</button>
+    <h3 class="modal-title">GO IAQS Score (for CO<sub>2</sub>)</h3>
+
+    <div class="modal-body">
+  <p>
+    The <strong>GO IAQS Score</strong> is a measurement system that converts complex air pollution data 
+    into a user-friendly score ranging from <strong>10 (best air quality)</strong> 
+    to <strong>0 (worst air quality)</strong>.
+  </p>
+
+  <p>
+    Its purpose is to provide a simple, comprehensive, and universally understood picture of 
+    indoor air quality, empowering individuals to make informed decisions.
+  </p>
+
+  <p>
+    The scores are grouped into a <strong>3-color scheme</strong> for quick and intuitive interpretation.
+  </p>
+
+  <p>
+    The GO IAQS Score covers many pollutants. Displayed here is solely the score for CO<sub>2</sub>.
+  </p>
+
+  <p>
+    For detailed information, visit:
+    <a href="https://goaqs.org/global-open-indoor-air-quality-standards/" 
+       target="_blank" 
+       rel="noopener noreferrer">
+       goaqs.org
+    </a>.
+  </p>
+</div>
   </div>
 </div>
 
@@ -246,6 +311,61 @@ aboutBtn.addEventListener("click", async () => {
     console.error('Failed to load about.html:', error);
   }
 });
+
+const SCORE_TO_LABEL = {
+  10: "<500ppm",
+  9:  "501–700ppm",
+  8:  "701–800ppm",
+  7:  "801–900ppm",
+  6:  "901–1100ppm",
+  5:  "1101–1300ppm",
+  4:  "1301–1400ppm",
+  3:  "1401–2000ppm",
+  2:  "2001–3200ppm",
+  1:  "3201–4400ppm",
+  0:  "≥ 4401ppm"
+};
+
+
+
+const minScore = document.getElementById("minScore");
+const maxScore = document.getElementById("maxScore");
+const minScoreValue = document.getElementById("minScoreValue");
+const maxScoreValue = document.getElementById("maxScoreValue");
+const scoreTrack = document.getElementById("scoreTrack");
+
+const MIN = 0;
+const MAX = 10;
+
+function updateRangeUI() {
+  let min = parseInt(minScore.value, 10);
+  let max = parseInt(maxScore.value, 10);
+
+  // prevent crossing
+  if (min > max) {
+    min = max;
+    minScore.value = String(min);
+   
+  }
+
+ minScoreValue.textContent = `${min} (${SCORE_TO_LABEL[min]})`;
+ maxScoreValue.textContent = `${max} (${SCORE_TO_LABEL[max]})`;
+
+  const pMin = ((min - MIN) / (MAX - MIN)) * 100;
+  const pMax = ((max - MIN) / (MAX - MIN)) * 100;
+
+  scoreTrack.style.background = `linear-gradient(to right,
+    #ddd ${pMin}%,
+    #3b82f6 ${pMin}%,
+    #3b82f6 ${pMax}%,
+    #ddd ${pMax}%
+  )`;
+}
+
+minScore.addEventListener("input", updateRangeUI);
+maxScore.addEventListener("input", updateRangeUI);
+updateRangeUI();
+
 
 
 </script>

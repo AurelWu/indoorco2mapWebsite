@@ -1,6 +1,7 @@
 
 export class MapManager {
   constructor(containerId = 'map', styleUrl = './styles/osm-style.json') {
+    this.useIaqs = false;
     this.containerId = containerId;
     this.styleUrl = styleUrl;
     this.map = null;
@@ -23,6 +24,10 @@ export class MapManager {
     this.zoom = this.params?.zoom ?? 6;
     
   }
+
+  setUseIaqs(enabled) {
+  this.useIaqs = !!enabled;
+}
 
   getURLParams() {
         const params = new URLSearchParams(window.location.search);
@@ -313,35 +318,47 @@ document.addEventListener('click', (e) => {
 
 
 
-  getAtlasConfig() {
-    const useGreen = this.colorScheme === 'GreenYellowRed';
-    const suffix = useGreen ? '_green' : '';
-
-    if (this.markerStyle === 'style2') {
-      return {
-        atlas: `./images/marker-atlas2${suffix}.png`,
-        mapping: {
-          blue: { x: 0, y: 0, width: 32, height: 32, anchorY: 32 },
-          brightblue: { x: 32, y: 0, width: 32, height: 32, anchorY: 32 },
-          yellow: { x: 64, y: 0, width: 32, height: 32, anchorY: 32 },
-          orange: { x: 96, y: 0, width: 32, height: 32, anchorY: 32 },
-          red: { x: 128, y: 0, width: 32, height: 32, anchorY: 32 }
-        }
-      };
-    }
-
-    // Default: style1
+getAtlasConfig() {
+  // IAQS mode: force the IAQS atlas + mapping (style1 dimensions 25x41)
+  if (this.useIaqs) {
     return {
-      atlas: `./images/marker-atlas${suffix}.png`,
+      atlas: `./images/marker-atlas_iaqs.png`,
       mapping: {
-        blue: { x: 0, y: 0, width: 25, height: 41, anchorY: 41 },
-        brightblue: { x: 25, y: 0, width: 25, height: 41, anchorY: 41 },
-        yellow: { x: 50, y: 0, width: 25, height: 41, anchorY: 41 },
-        orange: { x: 75, y: 0, width: 25, height: 41, anchorY: 41 },
-        red: { x: 100, y: 0, width: 25, height: 41, anchorY: 41 }
+        blue:   { x: 0,  y: 0, width: 25, height: 41, anchorY: 41 },
+        orange: { x: 25, y: 0, width: 25, height: 41, anchorY: 41 },
+        red:    { x: 50, y: 0, width: 25, height: 41, anchorY: 41 }
       }
     };
   }
+
+  // Existing behavior (Blue/Green + style1/style2)
+  const useGreen = this.colorScheme === 'GreenYellowRed';
+  const suffix = useGreen ? '_green' : '';
+
+  if (this.markerStyle === 'style2') {
+    return {
+      atlas: `./images/marker-atlas2${suffix}.png`,
+      mapping: {
+        blue: { x: 0, y: 0, width: 32, height: 32, anchorY: 32 },
+        brightblue: { x: 32, y: 0, width: 32, height: 32, anchorY: 32 },
+        yellow: { x: 64, y: 0, width: 32, height: 32, anchorY: 32 },
+        orange: { x: 96, y: 0, width: 32, height: 32, anchorY: 32 },
+        red: { x: 128, y: 0, width: 32, height: 32, anchorY: 32 }
+      }
+    };
+  }
+
+  return {
+    atlas: `./images/marker-atlas${suffix}.png`,
+    mapping: {
+      blue: { x: 0, y: 0, width: 25, height: 41, anchorY: 41 },
+      brightblue: { x: 25, y: 0, width: 25, height: 41, anchorY: 41 },
+      yellow: { x: 50, y: 0, width: 25, height: 41, anchorY: 41 },
+      orange: { x: 75, y: 0, width: 25, height: 41, anchorY: 41 },
+      red: { x: 100, y: 0, width: 25, height: 41, anchorY: 41 }
+    }
+  };
+}
 
   iconNames = ['blue', 'brightblue', 'yellow', 'orange', 'red'];
 

@@ -13,6 +13,24 @@ export class CO2DataManager {
         this.calculateAverages();
     }
 
+
+co2ToScore(ppm) {
+  if (typeof ppm !== "number" || isNaN(ppm)) return null;
+
+  if (ppm <= 500) return 10;
+  if (ppm <= 700) return 9;
+  if (ppm <= 800) return 8;
+  if (ppm <= 900) return 7;
+  if (ppm <= 1100) return 6;
+  if (ppm <= 1300) return 5;
+  if (ppm <= 1400) return 4;
+  if (ppm <= 2000) return 3;
+  if (ppm <= 3200) return 2;
+  if (ppm <= 4400) return 1;
+  return 0; // > 4400
+}
+
+
 processRawData(data) {
   const locations = {};
 
@@ -151,6 +169,36 @@ filterByDate(minDate, maxDate, inputData = this.filteredData) {
     this.calculateAverages();
     return filtered;
 }
+
+filterByCO2ScoreRange(minScore, maxScore, inputData = this.filteredData) {
+  const minS = parseInt(minScore, 10);
+  const maxS = parseInt(maxScore, 10);
+
+  if (isNaN(minS) || isNaN(maxS)) return inputData;
+
+  // Ensure averages reflect the current inputData
+  // (because averagesByLocation might have been computed for a different filteredData)
+  this.calculateAverages(inputData);
+
+  const filtered = {};
+
+  for (const [locationId, locationData] of Object.entries(inputData)) {
+    const avg = this.averagesByLocation[locationId];
+    if (typeof avg !== "number" || isNaN(avg)) continue;
+
+    const score = this.co2ToScore(avg);
+    if (score == null) continue;
+
+    if (score >= minS && score <= maxS) {
+      filtered[locationId] = locationData;
+    }
+  }
+
+  this.filteredData = filtered;
+  this.calculateAverages(); // keep manager state consistent
+  return filtered;
+}
+
 
     getFilteredData() {
         return this.filteredData;

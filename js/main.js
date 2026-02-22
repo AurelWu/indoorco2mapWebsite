@@ -1,18 +1,21 @@
-import { CO2DataManager } from '/js/dataLoader.js';
-import { MapManager } from '/js/map.js';
-import { createLegend } from '/js/legend.js';
-import { updateLegendColors } from '/js/legend.js';
+import { CO2DataManager } from './dataLoader.js';
+import { MapManager } from './map.js';
+import { createLegend } from './legend.js';
+import { renderLegend } from './legend.js';
 import { renderHistogram } from './histogram.js';
+import { openIaqsOverlay } from './legend.js';
 
 const dataUrl = 'https://indoorco2map.com/chartdata/IndoorCO2MapData.json.gz';
 
 const dataManager = new CO2DataManager();
 const mapManager = new MapManager();
 
-async function initData() {
+let useIaqsScore = false;
 
- 
+async function initData() { 
+
   createLegend();
+  renderLegend(mapManager.colorScheme, useIaqsScore);
   await dataManager.loadData(dataUrl);
   const averages = dataManager.getAverages();
   
@@ -73,7 +76,7 @@ document.getElementById('zoomToWorldBtn').addEventListener('click', zoomToWorld)
   const colorSelect = document.getElementById('colorSchemeSelect');
   colorSelect.addEventListener('change', () => {
   mapManager.colorScheme = colorSelect.value;
-  updateLegendColors(colorSelect.value);
+  renderLegend(mapManager.colorScheme, useIaqsScore);
   applyAllFilters(); // triggers re-render
 });
   const labelToggle = document.getElementById('labelToggle');
@@ -99,32 +102,66 @@ labelFontSizeInput.addEventListener("input", () => {
   applyAllFilters();
 });
 
-// Event listener for toggle button
+const minScoreSlider = document.getElementById('minScore');
+const maxScoreSlider = document.getElementById('maxScore');
+
+minScoreSlider.addEventListener('input', () => {
+  applyAllFilters();
+});
+
+maxScoreSlider.addEventListener('input', () => {
+  applyAllFilters();
+});
+
+// Get elements once
 const toggleButton = document.getElementById('toggleHistogram');
 const histogramContainer = document.getElementById('histogramContainer');
+const closeHistogramBtn = document.getElementById('closeHistogram');
 
-// Toggle visibility of the histogram
+// === Toggle button ===
 toggleButton.addEventListener('click', function(event) {
   event.stopPropagation();
 
-  // Toggle the 'hidden' class to show/hide the histogram container
   histogramContainer.classList.toggle('hidden');
 
-  // If the histogram is visible, re-render the chart
   if (!histogramContainer.classList.contains('hidden')) {
     renderHistogram(dataManager.getFilteredData());
   }
 });
 
-// Prevent clicks inside the histogram container from closing it
+// === Prevent clicks inside container from bubbling ===
 histogramContainer.addEventListener('click', function(event) {
   event.stopPropagation();
+});
+
+// === Close button (top-right X) ===
+closeHistogramBtn.addEventListener('click', function(event) {
+  event.stopPropagation(); // good practice
+  histogramContainer.classList.add('hidden');
 });
   
 document.getElementById("colorSchemeSelect").addEventListener("change", saveSettings);
 document.getElementById("markerStyleSelect").addEventListener("change", saveSettings);
 document.getElementById("labelToggle").addEventListener("change", saveSettings);
 document.getElementById("storeLocationBtn").addEventListener("click", saveCurrentViewAsDefault);
+
+const iaqsCheckbox = document.getElementById("useIaqsScore");
+iaqsCheckbox.addEventListener("change", () => {
+  useIaqsScore = iaqsCheckbox.checked;
+  mapManager.setUseIaqs(useIaqsScore);
+  // Update legend + markers
+  renderLegend(mapManager.colorScheme, useIaqsScore);
+  applyAllFilters();
+});
+
+const title = document.querySelector('#iaqs-toggle .open-iaqs-modal');
+if (title) {
+  title.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openIaqsOverlay();
+  });
+}
+
 
 function saveSettings() {
   // Load existing settings or start with empty object
@@ -193,6 +230,11 @@ function applyAllFilters() {
   const locationTypeValue = document.getElementById('locationTypeFilter').value;
   data = dataManager.filterByLocationType(locationTypeValue, data);
 
+  // === 4b. Filter by CO2 score range (slider) ===
+  const minScoreValue = document.getElementById("minScore").value;
+  const maxScoreValue = document.getElementById("maxScore").value;
+  data = dataManager.filterByCO2ScoreRange(minScoreValue, maxScoreValue, data);
+
   // === 5. Get averages from filtered data ===
   const averages = dataManager.getAverages(); // now works only on filtered data
   const filteredData = dataManager.getFilteredData();
@@ -256,6 +298,15 @@ function setupRetryHandler() {
 }
 
 function getMarkerColor(ppm) {
+
+  if (useIaqsScore) {
+    // GO IAQS Score
+    if (ppm < 801) return 'blue';
+    if (ppm < 1401) return 'orange';
+    return 'red';
+  }
+
+  // Normal scheme
   if (ppm < 600) return 'blue';
   if (ppm < 800) return 'brightblue';
   if (ppm < 1000) return 'yellow';

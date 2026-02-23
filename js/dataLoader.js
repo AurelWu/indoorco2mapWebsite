@@ -17,8 +17,8 @@ export class CO2DataManager {
 co2ToScore(ppm) {
   if (typeof ppm !== "number" || isNaN(ppm)) return null;
 
-  if (ppm <= 500) return 10;
-  if (ppm <= 700) return 9;
+  if (ppm <= 537) return 10;
+  if (ppm <= 712) return 9;
   if (ppm <= 800) return 8;
   if (ppm <= 900) return 7;
   if (ppm <= 1100) return 6;

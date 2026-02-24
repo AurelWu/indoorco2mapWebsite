@@ -163,8 +163,9 @@ iaqsCheckbox.addEventListener("change", () => {
   useIaqsScore = iaqsCheckbox.checked;
   mapManager.setUseIaqs(useIaqsScore);
   // Update legend + markers
+    saveSettings();
   renderLegend(mapManager.colorScheme, useIaqsScore);
-  applyAllFilters();
+    applyAllFilters();
 });
 
 const title = document.querySelector('#iaqs-toggle .open-iaqs-modal');
@@ -180,7 +181,8 @@ function saveSettings() {
   // Load existing settings or start with empty object
   const settings = JSON.parse(localStorage.getItem("mapSettings")) || {};
 
-  // Update only relevant keys
+    // Update only relevant keys
+  settings.useIaqsScore = document.getElementById("useIaqsScore").checked;
   settings.colorScheme = document.getElementById("colorSchemeSelect").value;
   settings.markerStyle = document.getElementById("markerStyleSelect").value;
   settings.showLabels = document.getElementById("labelToggle").checked;
@@ -490,11 +492,18 @@ function isDefaultViewInUrl() {
    window.addEventListener("DOMContentLoaded", () => {
   const savedSettings = localStorage.getItem("mapSettings");
   if (savedSettings) {
-    const { colorScheme, markerStyle, showLabels, labelFontSize, view } = JSON.parse(savedSettings);
+      const { colorScheme, markerStyle, showLabels, labelFontSize, view, useIaqsScore: savedIaqs } = JSON.parse(savedSettings);
     document.getElementById("colorSchemeSelect").value = colorScheme ?? "BlueYellowRed";    
     document.getElementById("markerStyleSelect").value = markerStyle ?? "style1";
     document.getElementById("labelToggle").checked = showLabels ?? true;
-    document.getElementById("labelFontSize").value = labelFontSize || 11;
+      document.getElementById("labelFontSize").value = labelFontSize || 11;
+      
+      const iaqsCheckbox = document.getElementById("useIaqsScore");
+      const iaqsEnabled = savedIaqs ?? false;
+      iaqsCheckbox.checked = iaqsEnabled;
+      useIaqsScore = iaqsEnabled;
+      mapManager.setUseIaqs(useIaqsScore);
+
     mapManager.setMarkerStyle(markerStyle);
     mapManager.setColorScheme(colorScheme);
     mapManager.setShowLabels(showLabels);

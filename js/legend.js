@@ -73,19 +73,6 @@ export function renderLegend(colorScheme, useIaqsMode) {
 
     legendContent.style.display = 'block';
     
-    ensureIaqsOverlayHandlers();
-
-const aboutLink = document.createElement('div');
-aboutLink.className = 'legend-about-link';
-aboutLink.textContent = 'About GO IAQS';
-
-aboutLink.addEventListener('click', (e) => {
-  e.stopPropagation();
-  openIaqsOverlay();
-});
-
-legendContent.appendChild(aboutLink);
-
 
     return;
   }
@@ -115,47 +102,3 @@ legendContent.appendChild(aboutLink);
 
 
 
-export function openIaqsOverlay() {
-  const overlay = document.getElementById('iaqsOverlay');
-  if (!overlay) return;
-
-  overlay.classList.remove('hidden');
-
-  // Close when clicking outside the card
-  overlay.addEventListener('click', onOverlayClick);
-}
-
-function closeIaqsOverlay() {
-  const overlay = document.getElementById('iaqsOverlay');
-  if (!overlay) return;
-
-  overlay.classList.add('hidden');
-  overlay.removeEventListener('click', onOverlayClick);
-}
-
-function onOverlayClick(e) {
-  // click on the dark background closes; click inside card doesn't
-  if (e.target && e.target.id === 'iaqsOverlay') {
-    closeIaqsOverlay();
-  }
-}
-
-function ensureIaqsOverlayHandlers() {
-  const closeBtn = document.getElementById('closeIaqsOverlay');
-  if (closeBtn && !closeBtn.dataset.bound) {
-    closeBtn.addEventListener('click', closeIaqsOverlay);
-    closeBtn.dataset.bound = '1';
-  }
-}
-
-function bindExternalIaqsTriggers() {
-  document.querySelectorAll('.open-iaqs-modal').forEach(el => {
-    if (el.dataset.bound) return;
-    el.addEventListener('click', (e) => {
-      e.stopPropagation();
-      ensureIaqsOverlayHandlers();
-      openIaqsOverlay();
-    });
-    el.dataset.bound = '1';
-  });
-}

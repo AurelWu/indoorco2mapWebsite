@@ -305,7 +305,7 @@ html, body {
   font-size: 12px;
   font-family: sans-serif;
   padding-bottom: 4px;
-  border-bottom: 1px solid #BBBBBB;
+
 
 }
 
@@ -319,15 +319,15 @@ html, body {
 }
 
 .legend-about-link {
-  margin-top: 6px;
-  padding-top: 6px;
-  border-top: 1px solid rgba(0,0,0,0.08);
-  font-size: 13px;
-  color: #1d8fff;
-  opacity: 1;
-  text-align: left;
-  cursor: pointer;
-  user-select: none;
+    margin-top: 6px;
+    padding-top: 6px;
+    font-size: 13px;
+    color: #1d8fff;
+    opacity: 1;
+    text-align: left;
+    cursor: pointer;
+    user-select: none;
+    border-bottom: 1px solid #BBBBBB;
 }
 
 .legend-about-link:hover {

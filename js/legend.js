@@ -21,7 +21,7 @@ const iaqs = {
 };
 
 export function createLegend() {
-  bindExternalIaqsTriggers();
+  //bindExternalIaqsTriggers();
   const toggleButton = document.getElementById('legend-toggle');
   toggleButton.addEventListener('click', () => {
     const legendContent = document.getElementById('legend-content');

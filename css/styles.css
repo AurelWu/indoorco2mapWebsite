@@ -336,10 +336,13 @@ html, body {
 }
 
 .iaqs-logo {
-  height: 28px;        /* small & clean */
-  width: auto;
-  max-width: 40px;     /* prevents oversized SVG */
-  object-fit: contain;
+    height: 28px;
+    width: 28px; 
+    max-width: 28px;
+    max-height: 28px;
+    display: inline-block; 
+    flex: 0 0 auto; 
+    object-fit: contain;
 }
 
 .iaqs-label {

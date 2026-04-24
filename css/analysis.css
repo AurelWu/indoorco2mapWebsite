@@ -445,6 +445,16 @@ input[type="text"] {
   background: #fef3c7;
 }
 
+.filter-mode-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.filter-mode-btn:disabled:hover {
+  background: #f9fafb;
+  border-color: #d1d5db;
+}
+
 select.exclude-mode {
   border-color: #f59e0b;
   background: #fffbeb;

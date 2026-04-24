@@ -16,6 +16,8 @@ const state = {
   countryExclude: false,
   locType: '',
   locTypeExclude: false,
+  brand: '',
+  brandExclude: false,
   dateMin: 0,
   dateMax: Infinity,
   splitBy: 'none',
@@ -361,6 +363,8 @@ function update() {
     countryExclude: state.countryExclude,
     locType: state.locType,
     locTypeExclude: state.locTypeExclude,
+    brand: state.brand,
+    brandExclude: state.brandExclude,
     dateMin: state.dateMin,
     dateMax: state.dateMax
   });
@@ -424,10 +428,11 @@ function countByLocationKey(records, keyFn) {
   return locSets;
 }
 
-function populateCountryDropdown() {
-  const locSets = countByLocationKey(allRecords, r => r.countryName);
+function populateCountryDropdown(records) {
+  const locSets = countByLocationKey(records || allRecords, r => r.countryName);
   const sorted = [...locSets.entries()].sort((a, b) => b[1].size - a[1].size);
   const sel = document.getElementById('country-select');
+  const prev = sel.value;
   sel.innerHTML = '<option value="">All Countries</option>';
   sorted.forEach(([country, locs]) => {
     const opt = document.createElement('option');
@@ -435,12 +440,15 @@ function populateCountryDropdown() {
     opt.textContent = `${country} (${locs.size})`;
     sel.appendChild(opt);
   });
+  if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
 }
 
-function populateLocTypeDropdown() {
-  const locSets = countByLocationKey(allRecords, r => r.osmTag);
+function populateLocTypeDropdown(records) {
+  const src = records || allRecords;
+  const locSets = countByLocationKey(src, r => r.osmTag);
   const sorted = [...locSets.entries()].sort((a, b) => b[1].size - a[1].size);
   const sel = document.getElementById('loctype-select');
+  const prev = sel.value;
   sel.innerHTML = '<option value="">All Location Types</option>';
   sorted.forEach(([tag, locs]) => {
     const opt = document.createElement('option');
@@ -448,6 +456,16 @@ function populateLocTypeDropdown() {
     opt.textContent = `${tag} (${locs.size})`;
     sel.appendChild(opt);
   });
+  // Restore selection if it still exists in the new list
+  if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+}
+
+function populateMainBrandDropdown(records) {
+  const sel = document.getElementById('brand-select');
+  populateSlotBrandDropdown(sel, records || allRecords);
+  if (state.brand && [...sel.options].some(o => o.value === state.brand)) {
+    sel.value = state.brand;
+  }
 }
 
 function populateSlotBrandDropdown(selectEl, records) {
@@ -522,6 +540,7 @@ function initDateSlider() {
     state.dateMin = +sMin.value;
     updateDateLabels();
     updateDateTrack();
+    refreshMainDropdowns();
     update();
   });
 
@@ -530,6 +549,7 @@ function initDateSlider() {
     state.dateMax = +sMax.value;
     updateDateLabels();
     updateDateTrack();
+    refreshMainDropdowns();
     update();
   });
 
@@ -552,6 +572,7 @@ function setDateRange(min, max) {
   state.dateMax = +sMax.value;
   updateDateLabels();
   updateDateTrack();
+  refreshMainDropdowns();
   update();
 }
 
@@ -577,19 +598,34 @@ function updateDateTrack() {
 
 function slotLabel(slot) {
   const parts = [];
-  if (slot.country)                         parts.push((slot.countryExclude  ? '≠' : '') + slot.country);
-  if (slot.locType)                         parts.push((slot.locTypeExclude  ? '≠' : '') + slot.locType);
-  if (slot.brandDisplay || slot.brand)      parts.push((slot.brandExclude    ? '≠' : '') + (slot.brandDisplay || slot.brand));
+  if (slot.country)                         parts.push((slot.countryExclude  ? 'NOT ' : '') + slot.country);
+  if (slot.locType)                         parts.push((slot.locTypeExclude  ? 'NOT ' : '') + slot.locType);
+  if (slot.brandDisplay || slot.brand)      parts.push((slot.brandExclude    ? 'NOT ' : '') + (slot.brandDisplay || slot.brand));
   if (slot.locationName)                    parts.push(slot.locationName);
   return parts.length ? parts.join(' · ') : 'All Data';
 }
 
 function makeExcludeToggle(sel, initialExclude, onChange) {
   const btn = document.createElement('button');
-  btn.className = 'filter-mode-btn' + (initialExclude ? ' exclude' : '');
-  btn.textContent = initialExclude ? '≠' : '=';
   btn.title = 'Toggle include / exclude';
-  sel.classList.toggle('exclude-mode', initialExclude);
+
+  function syncDisabled() {
+    const empty = sel.value === '';
+    btn.disabled = empty;
+    if (empty && btn.classList.contains('exclude')) {
+      btn.classList.remove('exclude');
+      sel.classList.remove('exclude-mode');
+      btn.textContent = '=';
+      onChange(false);
+    }
+  }
+
+  const startExclude = initialExclude && sel.value !== '';
+  btn.className = 'filter-mode-btn' + (startExclude ? ' exclude' : '');
+  btn.textContent = startExclude ? '≠' : '=';
+  sel.classList.toggle('exclude-mode', startExclude);
+  btn.disabled = sel.value === '';
+
   btn.addEventListener('click', () => {
     const nowExclude = !btn.classList.contains('exclude');
     btn.classList.toggle('exclude', nowExclude);
@@ -597,6 +633,9 @@ function makeExcludeToggle(sel, initialExclude, onChange) {
     sel.classList.toggle('exclude-mode', nowExclude);
     onChange(nowExclude);
   });
+
+  sel.addEventListener('change', syncDisabled);
+  btn._sync = syncDisabled;
   return btn;
 }
 
@@ -677,9 +716,11 @@ function renderSlots() {
       const cf = slot.country ? allRecords.filter(r => r.countryName === slot.country) : allRecords;
       populateSlotLocTypeDropdown(tSel, cf);
       slot.locType = ''; tSel.value = '';
+      tToggle._sync();
       const tf = cf.filter(r => !slot.locType || r.osmTag === slot.locType);
       populateSlotBrandDropdown(bSel, tf);
       slot.brand = ''; bSel.value = '';
+      bToggle._sync();
       slot.label = slotLabel(slot); labelEl.textContent = slot.label;
       updateComparisonChart();
     });
@@ -690,6 +731,7 @@ function renderSlots() {
       const tf = cf.filter(r => !slot.locType || r.osmTag === slot.locType);
       populateSlotBrandDropdown(bSel, tf);
       slot.brand = ''; bSel.value = '';
+      bToggle._sync();
       slot.label = slotLabel(slot); labelEl.textContent = slot.label;
       updateComparisonChart();
     });
@@ -762,6 +804,7 @@ function buildChipGroup(containerId, items, groupKey, totalCount) {
     chip.addEventListener('click', () => {
       chip.classList.toggle('active');
       syncTimeState(groupKey, containerId, totalCount);
+      refreshMainDropdowns();
       update();
     });
     container.appendChild(chip);
@@ -793,10 +836,38 @@ function initTimeFilters() {
       const idMap   = {months:'month-chips', weekdays:'weekday-chips', hours:'hour-chips'};
       const totals  = {months:12, weekdays:7, hours:24};
       setChipGroup(idMap[group], group, totals[group], action === 'all');
+      refreshMainDropdowns();
       update();
       if (slots.length > 0) updateComparisonChart();
     });
   });
+}
+
+function applyTimeFilter(records) {
+  return records.filter(r => {
+    if (r._ts < state.dateMin || r._ts > state.dateMax) return false;
+    if (state.hours    && !state.hours.has(new Date(r._ts).getUTCHours()))   return false;
+    if (state.months   && !state.months.has(new Date(r._ts).getUTCMonth()))  return false;
+    if (state.weekdays && !state.weekdays.has(new Date(r._ts).getUTCDay()))  return false;
+    return true;
+  });
+}
+
+function refreshMainDropdowns() {
+  const allTime = applyTimeFilter(allRecords);
+  populateCountryDropdown(allTime);
+  state.country = document.getElementById('country-select').value;
+  document.getElementById('country-mode')._syncDisabled && document.getElementById('country-mode')._syncDisabled();
+
+  const cf = state.country ? allTime.filter(r => r.countryName === state.country) : allTime;
+  populateLocTypeDropdown(cf);
+  state.locType = document.getElementById('loctype-select').value;
+  document.getElementById('loctype-mode')._syncDisabled && document.getElementById('loctype-mode')._syncDisabled();
+
+  const tf = cf.filter(r => !state.locType || r.osmTag === state.locType);
+  populateMainBrandDropdown(tf);
+  state.brand = document.getElementById('brand-select').value;
+  document.getElementById('brand-mode')._syncDisabled && document.getElementById('brand-mode')._syncDisabled();
 }
 
 // ─── Event wiring ────────────────────────────────────────────────────────────
@@ -804,17 +875,41 @@ function initTimeFilters() {
 function wireEvents() {
   document.getElementById('country-select').addEventListener('change', e => {
     state.country = e.target.value;
+    refreshMainDropdowns();
     update();
   });
 
   document.getElementById('loctype-select').addEventListener('change', e => {
     state.locType = e.target.value;
+    const cf = state.country ? allRecords.filter(r => r.countryName === state.country) : allRecords;
+    const tf = applyTimeFilter(cf).filter(r => !state.locType || r.osmTag === state.locType);
+    populateMainBrandDropdown(tf);
+    state.brand = document.getElementById('brand-select').value;
+    document.getElementById('brand-mode')._syncDisabled && document.getElementById('brand-mode')._syncDisabled();
+    update();
+  });
+
+  document.getElementById('brand-select').addEventListener('change', e => {
+    state.brand = e.target.value;
     update();
   });
 
   function wireModeBtn(btnId, selectId, stateKey) {
     const btn = document.getElementById(btnId);
     const sel = document.getElementById(selectId);
+
+    function syncDisabled() {
+      const empty = sel.value === '';
+      btn.disabled = empty;
+      if (empty && btn.classList.contains('exclude')) {
+        btn.classList.remove('exclude');
+        btn.textContent = '=';
+        sel.classList.remove('exclude-mode');
+        state[stateKey] = false;
+        update();
+      }
+    }
+
     btn.addEventListener('click', () => {
       const nowExclude = !btn.classList.contains('exclude');
       btn.classList.toggle('exclude', nowExclude);
@@ -823,9 +918,14 @@ function wireEvents() {
       state[stateKey] = nowExclude;
       update();
     });
+
+    sel.addEventListener('change', syncDisabled);
+    btn._syncDisabled = syncDisabled;
+    syncDisabled();
   }
   wireModeBtn('country-mode', 'country-select', 'countryExclude');
   wireModeBtn('loctype-mode', 'loctype-select', 'locTypeExclude');
+  wireModeBtn('brand-mode', 'brand-select', 'brandExclude');
 
   document.querySelectorAll('input[name="split"]').forEach(radio => {
     radio.addEventListener('change', e => {
@@ -890,6 +990,7 @@ async function init() {
 
       populateCountryDropdown();
       populateLocTypeDropdown();
+      populateMainBrandDropdown();
       initDateSlider();
       initTimeFilters();
       wireEvents();

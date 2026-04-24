@@ -279,6 +279,10 @@ input[type="text"] {
   padding-left: 18px;
 }
 
+.slot-row select {
+  max-width: 170px;
+}
+
 .slot-remove {
   margin-left: auto;
   background: none;
@@ -396,4 +400,125 @@ input[type="text"] {
   padding: 40px;
   color: #9ca3af;
   font-size: 0.95rem;
+}
+
+/* ── Include / Exclude mode toggle ──────────────────── */
+
+.filter-mode-wrap {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.filter-mode-btn {
+  flex-shrink: 0;
+  width: 28px;
+  height: 32px;
+  border: 1px solid #d1d5db;
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 1rem;
+  font-family: 'Titillium Web', sans-serif;
+  background: #f9fafb;
+  color: #9ca3af;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  line-height: 1;
+  transition: background 0.1s, border-color 0.1s, color 0.1s;
+}
+
+.filter-mode-btn:hover {
+  background: #e5e7eb;
+  border-color: #9ca3af;
+}
+
+.filter-mode-btn.exclude {
+  background: #fff7ed;
+  border-color: #f59e0b;
+  color: #d97706;
+  font-weight: 700;
+}
+
+.filter-mode-btn.exclude:hover {
+  background: #fef3c7;
+}
+
+select.exclude-mode {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+/* ── Chip toggles (time filters) ─────────────────────── */
+
+.chip-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 7px;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  font-size: 0.75rem;
+  cursor: pointer;
+  background: #f9fafb;
+  color: #6b7280;
+  user-select: none;
+  transition: background 0.1s, color 0.1s, border-color 0.1s;
+}
+
+.chip.active {
+  background: #3b82f6;
+  color: #fff;
+  border-color: #2563eb;
+}
+
+.chip:hover:not(.active) {
+  background: #e5e7eb;
+  border-color: #9ca3af;
+}
+
+.time-filter-group {
+  width: 100%;
+  margin-bottom: 8px;
+}
+
+.time-filter-group:last-child {
+  margin-bottom: 0;
+}
+
+.time-filter-label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b7280;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 5px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.chip-ctrl {
+  font-size: 0.7rem;
+  padding: 1px 7px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #f9fafb;
+  cursor: pointer;
+  color: #6b7280;
+  font-family: 'Titillium Web', sans-serif;
+  font-weight: 400;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.chip-ctrl:hover {
+  background: #e5e7eb;
+  border-color: #9ca3af;
 }

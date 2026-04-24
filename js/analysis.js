@@ -13,14 +13,19 @@ let slots = [];  // [{country,locType,brand,name,color}]
 
 const state = {
   country: '',
+  countryExclude: false,
   locType: '',
+  locTypeExclude: false,
   dateMin: 0,
   dateMax: Infinity,
   splitBy: 'none',
   limitN: 20,
   limitType: 'count',      // criterion for selecting which N make the cut
   displayOrder: 'lowest',  // how to order those N in the chart
-  showItems: true
+  showItems: true,
+  hours: null,     // null = all; Set of UTC hours (0-23) otherwise
+  months: null,    // null = all; Set of UTC months (0=Jan…11=Dec) otherwise
+  weekdays: null   // null = all; Set of UTC weekdays (0=Sun…6=Sat) otherwise
 };
 
 // ─── Data loading ────────────────────────────────────────────────────────────
@@ -50,17 +55,39 @@ function getMean(arr) {
 // ─── Filtering ───────────────────────────────────────────────────────────────
 
 function filterRecords(records, opts = {}) {
-  const { country = '', locType = '', dateMin = 0, dateMax = Infinity, brand = '', locationName = '' } = opts;
+  const {
+    country = '', countryExclude = false,
+    locType = '', locTypeExclude = false,
+    dateMin = 0, dateMax = Infinity,
+    brand = '', brandExclude = false,
+    locationName = ''
+  } = opts;
   const brandNorm = normKey(brand);
   return records.filter(r => {
-    if (country && r.countryName !== country) return false;
-    if (locType && r.osmTag !== locType) return false;
+    if (country) {
+      const m = r.countryName === country;
+      if (countryExclude ? m : !m) return false;
+    }
+    if (locType) {
+      const m = r.osmTag === locType;
+      if (locTypeExclude ? m : !m) return false;
+    }
     const t = r._ts;
     if (t < dateMin || t > dateMax) return false;
-    if (brand && normKey(r.brand) !== brandNorm) return false;
+    if (brand) {
+      const m = normKey(r.brand) === brandNorm;
+      if (brandExclude ? m : !m) return false;
+    }
     if (locationName) {
       const n = (r.name || '').toLowerCase();
       if (!n.includes(locationName.toLowerCase())) return false;
+    }
+    // Global time-of-day / month / weekday filters (applied to all views incl. comparison)
+    if (state.hours || state.months || state.weekdays) {
+      const d = new Date(r._ts);
+      if (state.hours    && !state.hours.has(d.getUTCHours()))   return false;
+      if (state.months   && !state.months.has(d.getUTCMonth()))  return false;
+      if (state.weekdays && !state.weekdays.has(d.getUTCDay()))  return false;
     }
     return true;
   });
@@ -196,7 +223,7 @@ function renderMainChart(groups) {
         outlierBackgroundColor: 'rgba(239,68,68,0.6)'
       }]
     },
-    options: buildChartOptions('CO₂ Distribution')
+    options: buildChartOptions(false)
   });
 }
 
@@ -240,11 +267,11 @@ function renderComparisonChart(slotData) {
         outlierBackgroundColor: slotData.map(s => s.color + 'AA')
       }]
     },
-    options: buildChartOptions('Comparison')
+    options: buildChartOptions(true)
   });
 }
 
-function buildChartOptions(titleText) {
+function buildChartOptions(multilineXLabels = false) {
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -310,11 +337,15 @@ function buildChartOptions(titleText) {
       },
       x: {
         ticks: {
-          maxRotation: 40,
+          maxRotation: multilineXLabels ? 0 : 40,
+          minRotation: 0,
           font: { size: 11 },
-          callback: function(val, idx) {
+          callback: function(val) {
             const lbl = this.getLabelForValue(val);
-            return lbl.length > 30 ? lbl.slice(0, 28) + '…' : lbl;
+            if (!lbl) return '';
+            // Split on the · separator used in comparison slot labels → multiline
+            if (lbl.includes(' · ')) return lbl.split(' · ');
+            return lbl;
           }
         }
       }
@@ -327,7 +358,9 @@ function buildChartOptions(titleText) {
 function update() {
   const filtered = filterRecords(allRecords, {
     country: state.country,
+    countryExclude: state.countryExclude,
     locType: state.locType,
+    locTypeExclude: state.locTypeExclude,
     dateMin: state.dateMin,
     dateMax: state.dateMax
   });
@@ -362,9 +395,14 @@ function updateComparisonChart() {
   const slotData = slots.map(slot => {
     const filtered = filterRecords(allRecords, {
       country: slot.country,
+      countryExclude: slot.countryExclude || false,
       locType: slot.locType,
+      locTypeExclude: slot.locTypeExclude || false,
       brand: slot.brand,
-      locationName: slot.locationName
+      brandExclude: slot.brandExclude || false,
+      locationName: slot.locationName,
+      dateMin: state.dateMin,
+      dateMax: state.dateMax
     });
     const locs = aggregateByLocation(filtered);
     const values = [...locs.values()].map(l => l.avgCO2).filter(v => !isNaN(v));
@@ -506,8 +544,6 @@ function initDateSlider() {
 }
 
 function setDateRange(min, max) {
-  const tMin = allRecords.length ? Math.min(...allRecords.map(r => r._ts).filter(isFinite)) : 0;
-  const tMax = allRecords.length ? Math.max(...allRecords.map(r => r._ts).filter(isFinite)) : Infinity;
   const sMin = document.getElementById('date-slider-min');
   const sMax = document.getElementById('date-slider-max');
   sMin.value = Math.max(min, +sMin.min);
@@ -540,46 +576,83 @@ function updateDateTrack() {
 // ─── Comparison slots ────────────────────────────────────────────────────────
 
 function slotLabel(slot) {
-  // Use brandDisplay (original casing) for label, not the normalized key
-  const parts = [slot.country, slot.locType, slot.brandDisplay || slot.brand, slot.locationName].filter(Boolean);
+  const parts = [];
+  if (slot.country)                         parts.push((slot.countryExclude  ? '≠' : '') + slot.country);
+  if (slot.locType)                         parts.push((slot.locTypeExclude  ? '≠' : '') + slot.locType);
+  if (slot.brandDisplay || slot.brand)      parts.push((slot.brandExclude    ? '≠' : '') + (slot.brandDisplay || slot.brand));
+  if (slot.locationName)                    parts.push(slot.locationName);
   return parts.length ? parts.join(' · ') : 'All Data';
+}
+
+function makeExcludeToggle(sel, initialExclude, onChange) {
+  const btn = document.createElement('button');
+  btn.className = 'filter-mode-btn' + (initialExclude ? ' exclude' : '');
+  btn.textContent = initialExclude ? '≠' : '=';
+  btn.title = 'Toggle include / exclude';
+  sel.classList.toggle('exclude-mode', initialExclude);
+  btn.addEventListener('click', () => {
+    const nowExclude = !btn.classList.contains('exclude');
+    btn.classList.toggle('exclude', nowExclude);
+    btn.textContent = nowExclude ? '≠' : '=';
+    sel.classList.toggle('exclude-mode', nowExclude);
+    onChange(nowExclude);
+  });
+  return btn;
 }
 
 function renderSlots() {
   const container = document.getElementById('slots-container');
   container.innerHTML = '';
 
-  slots.forEach((slot, idx) => {
+  slots.forEach((slot, slotIdx) => {
     const row = document.createElement('div');
     row.className = 'slot-row';
     row.style.borderLeftColor = slot.color;
 
-    // Country select
+    // Country select + exclude toggle
     const cSel = document.createElement('select');
     cSel.title = 'Country';
     populateSlotCountryDropdown(cSel);
     cSel.value = slot.country;
+    const cToggle = makeExcludeToggle(cSel, slot.countryExclude, v => {
+      slot.countryExclude = v;
+      slot.label = slotLabel(slot);
+      labelEl.textContent = slot.label;
+      updateComparisonChart();
+    });
 
-    // LocType select (populated by country filter)
+    // LocType select + exclude toggle (populated by country filter)
     const tSel = document.createElement('select');
     tSel.title = 'Location Type';
     const countryFiltered = slot.country ? allRecords.filter(r => r.countryName === slot.country) : allRecords;
     populateSlotLocTypeDropdown(tSel, countryFiltered);
     tSel.value = slot.locType;
+    const tToggle = makeExcludeToggle(tSel, slot.locTypeExclude, v => {
+      slot.locTypeExclude = v;
+      slot.label = slotLabel(slot);
+      labelEl.textContent = slot.label;
+      updateComparisonChart();
+    });
 
-    // Brand select (populated by country + locType)
+    // Brand select + exclude toggle (populated by country + locType)
     const bSel = document.createElement('select');
     bSel.title = 'Brand';
     const typeFiltered = countryFiltered.filter(r => !slot.locType || r.osmTag === slot.locType);
     populateSlotBrandDropdown(bSel, typeFiltered);
     bSel.value = slot.brand;
+    const bToggle = makeExcludeToggle(bSel, slot.brandExclude, v => {
+      slot.brandExclude = v;
+      slot.label = slotLabel(slot);
+      labelEl.textContent = slot.label;
+      updateComparisonChart();
+    });
 
     // Name text input
     const nInp = document.createElement('input');
     nInp.type = 'text';
     nInp.placeholder = 'Name search…';
     nInp.value = slot.locationName || '';
-    nInp.style.width = '120px';
+    nInp.style.width = '110px';
 
     // Color dot
     const dot = document.createElement('span');
@@ -591,9 +664,9 @@ function renderSlots() {
     removeBtn.className = 'slot-remove';
     removeBtn.title = 'Remove';
     removeBtn.textContent = '×';
-    removeBtn.addEventListener('click', () => { slots.splice(idx, 1); renderSlots(); updateAddSlotBtn(); updateComparisonChart(); });
+    removeBtn.addEventListener('click', () => { slots.splice(slotIdx, 1); renderSlots(); updateAddSlotBtn(); updateComparisonChart(); });
 
-    // Label
+    // Label (declared early so toggle callbacks can reference it)
     const labelEl = document.createElement('div');
     labelEl.className = 'slot-label';
     labelEl.textContent = slotLabel(slot);
@@ -603,14 +676,11 @@ function renderSlots() {
       slot.country = cSel.value;
       const cf = slot.country ? allRecords.filter(r => r.countryName === slot.country) : allRecords;
       populateSlotLocTypeDropdown(tSel, cf);
-      slot.locType = '';
-      tSel.value = '';
+      slot.locType = ''; tSel.value = '';
       const tf = cf.filter(r => !slot.locType || r.osmTag === slot.locType);
       populateSlotBrandDropdown(bSel, tf);
-      slot.brand = '';
-      bSel.value = '';
-      slot.label = slotLabel(slot);
-      labelEl.textContent = slot.label;
+      slot.brand = ''; bSel.value = '';
+      slot.label = slotLabel(slot); labelEl.textContent = slot.label;
       updateComparisonChart();
     });
 
@@ -619,33 +689,29 @@ function renderSlots() {
       const cf = slot.country ? allRecords.filter(r => r.countryName === slot.country) : allRecords;
       const tf = cf.filter(r => !slot.locType || r.osmTag === slot.locType);
       populateSlotBrandDropdown(bSel, tf);
-      slot.brand = '';
-      bSel.value = '';
-      slot.label = slotLabel(slot);
-      labelEl.textContent = slot.label;
+      slot.brand = ''; bSel.value = '';
+      slot.label = slotLabel(slot); labelEl.textContent = slot.label;
       updateComparisonChart();
     });
 
     bSel.addEventListener('change', () => {
-      slot.brand = bSel.value; // normalized key
+      slot.brand = bSel.value;
       const selOpt = bSel.options[bSel.selectedIndex];
       slot.brandDisplay = selOpt.value ? selOpt.text.replace(/ \(\d+\)$/, '') : '';
-      slot.label = slotLabel(slot);
-      labelEl.textContent = slot.label;
+      slot.label = slotLabel(slot); labelEl.textContent = slot.label;
       updateComparisonChart();
     });
 
     nInp.addEventListener('input', () => {
       slot.locationName = nInp.value;
-      slot.label = slotLabel(slot);
-      labelEl.textContent = slot.label;
+      slot.label = slotLabel(slot); labelEl.textContent = slot.label;
       updateComparisonChart();
     });
 
     row.appendChild(dot);
-    row.appendChild(cSel);
-    row.appendChild(tSel);
-    row.appendChild(bSel);
+    row.appendChild(cToggle); row.appendChild(cSel);
+    row.appendChild(tToggle); row.appendChild(tSel);
+    row.appendChild(bToggle); row.appendChild(bSel);
     row.appendChild(nInp);
     row.appendChild(removeBtn);
     row.appendChild(labelEl);
@@ -664,9 +730,9 @@ function renderSlots() {
 function addSlot() {
   if (slots.length >= 5) return;
   slots.push({
-    country: '',
-    locType: '',
-    brand: '',
+    country: '', countryExclude: false,
+    locType: '', locTypeExclude: false,
+    brand: '',   brandExclude: false,
     brandDisplay: '',
     locationName: '',
     color: SLOT_COLORS[slots.length],
@@ -681,6 +747,58 @@ function updateAddSlotBtn() {
   document.getElementById('add-slot-btn').disabled = slots.length >= 5;
 }
 
+// ─── Time filters ────────────────────────────────────────────────────────────
+
+const MONTH_LABELS   = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const WEEKDAY_ITEMS  = [{l:'Mon',v:1},{l:'Tue',v:2},{l:'Wed',v:3},{l:'Thu',v:4},{l:'Fri',v:5},{l:'Sat',v:6},{l:'Sun',v:0}];
+
+function buildChipGroup(containerId, items, groupKey, totalCount) {
+  const container = document.getElementById(containerId);
+  items.forEach(({l, v}) => {
+    const chip = document.createElement('span');
+    chip.className = 'chip active';
+    chip.textContent = l;
+    chip.dataset.value = v;
+    chip.addEventListener('click', () => {
+      chip.classList.toggle('active');
+      syncTimeState(groupKey, containerId, totalCount);
+      update();
+    });
+    container.appendChild(chip);
+  });
+}
+
+function syncTimeState(groupKey, containerId, totalCount) {
+  const chips = [...document.querySelectorAll(`#${containerId} .chip`)];
+  const active = chips.filter(c => c.classList.contains('active')).map(c => +c.dataset.value);
+  state[groupKey] = active.length === totalCount ? null : new Set(active);
+}
+
+function setChipGroup(containerId, groupKey, totalCount, active) {
+  document.querySelectorAll(`#${containerId} .chip`).forEach(c => {
+    c.classList.toggle('active', active);
+  });
+  syncTimeState(groupKey, containerId, totalCount);
+}
+
+function initTimeFilters() {
+  buildChipGroup('month-chips',   MONTH_LABELS.map((l, i) => ({l, v: i})),  'months',   12);
+  buildChipGroup('weekday-chips', WEEKDAY_ITEMS,                              'weekdays',  7);
+  buildChipGroup('hour-chips',    Array.from({length:24}, (_, i) => ({l: String(i).padStart(2,'0'), v: i})), 'hours', 24);
+
+  document.querySelectorAll('.chip-ctrl').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const group   = btn.dataset.group;
+      const action  = btn.dataset.action;
+      const idMap   = {months:'month-chips', weekdays:'weekday-chips', hours:'hour-chips'};
+      const totals  = {months:12, weekdays:7, hours:24};
+      setChipGroup(idMap[group], group, totals[group], action === 'all');
+      update();
+      if (slots.length > 0) updateComparisonChart();
+    });
+  });
+}
+
 // ─── Event wiring ────────────────────────────────────────────────────────────
 
 function wireEvents() {
@@ -693,6 +811,21 @@ function wireEvents() {
     state.locType = e.target.value;
     update();
   });
+
+  function wireModeBtn(btnId, selectId, stateKey) {
+    const btn = document.getElementById(btnId);
+    const sel = document.getElementById(selectId);
+    btn.addEventListener('click', () => {
+      const nowExclude = !btn.classList.contains('exclude');
+      btn.classList.toggle('exclude', nowExclude);
+      btn.textContent = nowExclude ? '≠' : '=';
+      sel.classList.toggle('exclude-mode', nowExclude);
+      state[stateKey] = nowExclude;
+      update();
+    });
+  }
+  wireModeBtn('country-mode', 'country-select', 'countryExclude');
+  wireModeBtn('loctype-mode', 'loctype-select', 'locTypeExclude');
 
   document.querySelectorAll('input[name="split"]').forEach(radio => {
     radio.addEventListener('change', e => {
@@ -758,6 +891,7 @@ async function init() {
       populateCountryDropdown();
       populateLocTypeDropdown();
       initDateSlider();
+      initTimeFilters();
       wireEvents();
       update();
 

@@ -64,16 +64,22 @@
     <div class="filter-row">
       <label class="filter-label">
         <span>Country</span>
-        <select id="country-select" style="min-width:180px">
-          <option value="">All Countries</option>
-        </select>
+        <div class="filter-mode-wrap">
+          <button class="filter-mode-btn" id="country-mode" title="Switch between Include and Exclude">=</button>
+          <select id="country-select" style="min-width:180px">
+            <option value="">All Countries</option>
+          </select>
+        </div>
       </label>
 
       <label class="filter-label">
         <span>Location Type</span>
-        <select id="loctype-select" style="min-width:200px">
-          <option value="">All Location Types</option>
-        </select>
+        <div class="filter-mode-wrap">
+          <button class="filter-mode-btn" id="loctype-mode" title="Switch between Include and Exclude">=</button>
+          <select id="loctype-select" style="min-width:200px">
+            <option value="">All Location Types</option>
+          </select>
+        </div>
       </label>
     </div>
 
@@ -97,6 +103,38 @@
           </div>
         </div>
       </label>
+    </div>
+  </section>
+
+  <!-- Time filters -->
+  <section class="an-panel">
+    <div class="an-panel-title">Time Filters</div>
+
+    <div class="time-filter-group">
+      <div class="time-filter-label">
+        Months
+        <button class="chip-ctrl" data-action="all" data-group="months">All</button>
+        <button class="chip-ctrl" data-action="none" data-group="months">None</button>
+      </div>
+      <div class="chip-group" id="month-chips"></div>
+    </div>
+
+    <div class="time-filter-group">
+      <div class="time-filter-label">
+        Days of Week
+        <button class="chip-ctrl" data-action="all" data-group="weekdays">All</button>
+        <button class="chip-ctrl" data-action="none" data-group="weekdays">None</button>
+      </div>
+      <div class="chip-group" id="weekday-chips"></div>
+    </div>
+
+    <div class="time-filter-group">
+      <div class="time-filter-label">
+        Hours (UTC)
+        <button class="chip-ctrl" data-action="all" data-group="hours">All</button>
+        <button class="chip-ctrl" data-action="none" data-group="hours">None</button>
+      </div>
+      <div class="chip-group" id="hour-chips"></div>
     </div>
   </section>
 

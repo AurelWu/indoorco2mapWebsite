@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Data Analysis — Indoor CO₂ Atlas</title>
+  <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="./css/styles.css" />
+  <link rel="stylesheet" href="./css/analysis.css" />
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@sgratzl/chartjs-chart-boxplot@4.4.1/build/index.umd.min.js"></script>
+</head>
+<body>
+
+<!-- Loading overlay -->
+<div id="an-loading" style="display:flex">
+  <div id="an-loading-inner">
+    <span class="spinner">⏳</span>
+    Loading data…
+    <div id="an-error" style="display:none"></div>
+    <button id="an-retry-btn" style="display:none">Retry</button>
+  </div>
+</div>
+
+<!-- Navbar -->
+<nav>
+  <ul class="navbar">
+    <li class="navbar-icon">
+      <a href="https://indoorco2map.com">
+        <img src="images/icon512_512.png" alt="Indoor CO₂ Map" class="navbar-logo">
+      </a>
+    </li>
+
+    <div class="dropdown">
+      <button onclick="this.nextElementSibling.classList.toggle('show')" class="dropbtn">Menu</button>
+      <div class="dropdown-content">
+        <a href="https://indoorco2map.com/transit.html">Public Transit</a>
+        <a href="https://www.indoorco2map.com/BoxPlotLocationTypes.html">Results by Location Type</a>
+        <a href="analysis.html"><strong>Data Analysis</strong></a>
+        <a href="https://www.indoorco2map.com/supermarketdetails.html">Supermarket Charts (Germany)</a>
+        <a href="https://indoorco2map.com/stats.html">Activity Stats</a>
+        <a href="https://indoorco2map.com/frequencyMapNUTS1.html">Activity Map by NUTS1 Region</a>
+        <a href="https://www.indoorco2map.com/allSupermarkets.html">All Supermarkets (Germany)</a>
+        <a href="#" onclick="event.preventDefault();window.location='https://indoorco2map.com/chartdata/IndoorCO2MapData.zip'">
+          <i class="fas fa-download"></i> Download Data
+        </a>
+      </div>
+    </div>
+
+    <a href="index.html" class="navbar-back"><i class="fas fa-map-marker-alt" style="margin-right:5px"></i> Map</a>
+  </ul>
+</nav>
+
+<!-- Main content -->
+<div id="analysis-wrap">
+  <h1>Data Analysis</h1>
+
+  <!-- Filter panel -->
+  <section class="an-panel">
+    <div class="an-panel-title">Filters</div>
+
+    <div class="filter-row">
+      <label class="filter-label">
+        <span>Country</span>
+        <select id="country-select" style="min-width:180px">
+          <option value="">All Countries</option>
+        </select>
+      </label>
+
+      <label class="filter-label">
+        <span>Location Type</span>
+        <select id="loctype-select" style="min-width:200px">
+          <option value="">All Location Types</option>
+        </select>
+      </label>
+    </div>
+
+    <div class="filter-row">
+      <label class="filter-label">
+        <span>Date Range</span>
+        <div id="date-slider-wrap">
+          <div class="range-wrapper" style="margin-bottom:2px">
+            <div class="range-track" id="date-track"></div>
+            <input type="range" id="date-slider-min">
+            <input type="range" id="date-slider-max">
+          </div>
+          <div id="date-labels">
+            <span id="date-label-min">—</span>
+            <span id="date-label-max">—</span>
+          </div>
+          <div class="date-preset-btns">
+            <button id="preset-all">All</button>
+            <button id="preset-12m">Last 12 m</button>
+            <button id="preset-6m">Last 6 m</button>
+          </div>
+        </div>
+      </label>
+    </div>
+  </section>
+
+  <!-- Display options -->
+  <section class="an-panel">
+    <div class="an-panel-title">Display</div>
+
+    <div class="filter-row">
+      <span style="font-size:0.85rem;color:#374151;white-space:nowrap">Split by:</span>
+      <div class="radio-group">
+        <label><input type="radio" name="split" value="none" checked> None</label>
+        <label><input type="radio" name="split" value="type"> Location Type</label>
+        <label><input type="radio" name="split" value="brand"> Brand</label>
+        <label><input type="radio" name="split" value="location"> Single Locations</label>
+      </div>
+    </div>
+
+    <div class="filter-row" id="limit-row" style="display:none">
+      <span style="font-size:0.85rem;color:#374151">Show top</span>
+      <input type="number" id="limit-n" value="20" min="1" max="500">
+      <span style="font-size:0.85rem;color:#374151">by</span>
+      <select id="limit-type">
+        <option value="count">Most Frequent</option>
+        <option value="highest">Highest Median CO₂</option>
+        <option value="lowest">Lowest Median CO₂</option>
+      </select>
+      <span style="font-size:0.85rem;color:#374151">, display order:</span>
+      <select id="display-order">
+        <option value="lowest">Lowest Median CO₂</option>
+        <option value="highest">Highest Median CO₂</option>
+        <option value="count">Most Frequent</option>
+      </select>
+    </div>
+
+    <div class="filter-row">
+      <label class="scatter-toggle">
+        <input type="checkbox" id="show-items" checked>
+        Show individual values
+      </label>
+    </div>
+  </section>
+
+  <!-- Main chart -->
+  <section class="an-panel">
+    <div id="chart-summary"></div>
+    <div id="main-chart-wrap" style="height:500px">
+      <canvas id="main-chart"></canvas>
+    </div>
+  </section>
+
+  <!-- Comparison mode -->
+  <section class="an-panel">
+    <div id="comparison-header">
+      <h2>Comparison Mode</h2>
+      <button id="toggle-comparison">Show</button>
+    </div>
+    <p style="font-size:0.82rem;color:#6b7280;margin:4px 0 0">
+      Compare up to 5 independently filtered datasets side by side.
+    </p>
+
+    <div id="comparison-body" class="hidden">
+      <div id="slots-container"></div>
+      <button id="add-slot-btn">+ Add Filter Set</button>
+      <div id="comparison-chart-wrap" style="height:480px;margin-top:12px">
+        <canvas id="comparison-chart"></canvas>
+      </div>
+    </div>
+  </section>
+
+</div><!-- #analysis-wrap -->
+
+<script>
+  // Close dropdown when clicking outside
+  document.addEventListener('click', e => {
+    document.querySelectorAll('.dropdown-content.show').forEach(d => {
+      if (!d.previousElementSibling.contains(e.target)) d.classList.remove('show');
+    });
+  });
+</script>
+<script src="./js/analysis.js"></script>
+</body>
+</html>

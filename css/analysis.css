@@ -1,0 +1,399 @@
+/* =====================================================
+   analysis.css — styles for analysis.html only
+   ===================================================== */
+
+body {
+  overflow: auto;
+  background: #f3f4f6;
+  font-family: 'Titillium Web', sans-serif;
+}
+
+/* ── Layout ─────────────────────────────────────────── */
+
+#analysis-wrap {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 12px 16px 32px;
+}
+
+#analysis-wrap h1 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  margin: 12px 0 14px;
+  color: #111;
+}
+
+/* ── Panel card ──────────────────────────────────────── */
+
+.an-panel {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+}
+
+.an-panel-title {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #6b7280;
+  margin-bottom: 10px;
+}
+
+/* ── Filter rows ─────────────────────────────────────── */
+
+.filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  margin-bottom: 10px;
+}
+
+.filter-row:last-child {
+  margin-bottom: 0;
+}
+
+.filter-label {
+  font-size: 0.82rem;
+  color: #374151;
+  white-space: nowrap;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.filter-label span {
+  font-size: 0.72rem;
+  color: #9ca3af;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+select, input[type="number"], input[type="text"] {
+  font-family: 'Titillium Web', sans-serif;
+  font-size: 0.88rem;
+  height: 32px;
+  border: 1px solid #d1d5db;
+  border-radius: 5px;
+  padding: 0 8px;
+  background: #fff;
+  color: #111;
+  cursor: pointer;
+}
+
+select:focus, input[type="number"]:focus, input[type="text"]:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 2px rgba(59,130,246,0.15);
+}
+
+input[type="number"] {
+  width: 60px;
+  cursor: text;
+}
+
+input[type="text"] {
+  width: 150px;
+  cursor: text;
+}
+
+/* ── Date slider ─────────────────────────────────────── */
+
+#date-slider-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 200px;
+  max-width: 320px;
+}
+
+#date-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.78rem;
+  color: #374151;
+}
+
+.date-preset-btns {
+  display: flex;
+  gap: 4px;
+  margin-top: 2px;
+}
+
+.date-preset-btns button {
+  font-size: 0.72rem;
+  padding: 2px 7px;
+  border: 1px solid #d1d5db;
+  border-radius: 4px;
+  background: #f9fafb;
+  cursor: pointer;
+  color: #374151;
+  font-family: 'Titillium Web', sans-serif;
+}
+
+.date-preset-btns button:hover {
+  background: #e5e7eb;
+}
+
+/* ── Split / radio group ─────────────────────────────── */
+
+.radio-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+}
+
+.radio-group label {
+  font-size: 0.85rem;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  color: #374151;
+}
+
+.radio-group input[type="radio"] {
+  cursor: pointer;
+  accent-color: #3b82f6;
+}
+
+/* ── Limit row ───────────────────────────────────────── */
+
+.limit-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.85rem;
+  color: #374151;
+}
+
+.scatter-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.85rem;
+  color: #374151;
+  cursor: pointer;
+}
+
+.scatter-toggle input {
+  accent-color: #3b82f6;
+  cursor: pointer;
+}
+
+/* ── Summary text ────────────────────────────────────── */
+
+#chart-summary {
+  font-size: 0.8rem;
+  color: #6b7280;
+  margin-bottom: 8px;
+}
+
+/* ── Chart containers ────────────────────────────────── */
+
+#main-chart-wrap {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+}
+
+#comparison-chart-wrap {
+  position: relative;
+  width: 100%;
+  overflow-x: auto;
+  margin-top: 12px;
+}
+
+/* ── Comparison section ──────────────────────────────── */
+
+#comparison-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+#comparison-header h2 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 0;
+}
+
+#toggle-comparison {
+  font-size: 0.82rem;
+  padding: 4px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 5px;
+  background: #f9fafb;
+  cursor: pointer;
+  font-family: 'Titillium Web', sans-serif;
+}
+
+#toggle-comparison:hover {
+  background: #e5e7eb;
+}
+
+#comparison-body {
+  margin-top: 12px;
+}
+
+#comparison-body.hidden {
+  display: none;
+}
+
+#slots-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.slot-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  background: #f9fafb;
+  border-radius: 6px;
+  border-left: 4px solid #3b82f6;
+}
+
+.slot-color-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.slot-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+  margin-top: 2px;
+  flex-basis: 100%;
+  padding-left: 18px;
+}
+
+.slot-remove {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: #9ca3af;
+  font-size: 1rem;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+
+.slot-remove:hover {
+  color: #ef4444;
+}
+
+#add-slot-btn {
+  font-size: 0.82rem;
+  padding: 5px 12px;
+  border: 1px dashed #9ca3af;
+  border-radius: 5px;
+  background: transparent;
+  cursor: pointer;
+  color: #6b7280;
+  font-family: 'Titillium Web', sans-serif;
+}
+
+#add-slot-btn:hover:not(:disabled) {
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+#add-slot-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* ── Loading overlay ─────────────────────────────────── */
+
+#an-loading {
+  position: fixed;
+  inset: 0;
+  background: rgba(255,255,255,0.85);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9000;
+}
+
+#an-loading-inner {
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 24px 36px;
+  text-align: center;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.1);
+  font-size: 1rem;
+  color: #374151;
+}
+
+#an-loading-inner .spinner {
+  font-size: 1.6rem;
+  display: block;
+  margin-bottom: 8px;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+#an-error {
+  color: #ef4444;
+  font-size: 0.85rem;
+  margin-top: 8px;
+}
+
+#an-retry-btn {
+  margin-top: 10px;
+  padding: 6px 16px;
+  background: #3b82f6;
+  color: #fff;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: 'Titillium Web', sans-serif;
+  font-size: 0.9rem;
+}
+
+#an-retry-btn:hover {
+  background: #2563eb;
+}
+
+/* ── Navbar "back" link ──────────────────────────────── */
+
+.navbar-back {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  height: 40px;
+  font-size: 0.9rem;
+  text-decoration: none;
+  color: #374151;
+  white-space: nowrap;
+}
+
+.navbar-back:hover {
+  color: #3b82f6;
+}
+
+/* ── No-data message ─────────────────────────────────── */
+
+.no-data-msg {
+  text-align: center;
+  padding: 40px;
+  color: #9ca3af;
+  font-size: 0.95rem;
+}

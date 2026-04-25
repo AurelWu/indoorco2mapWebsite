@@ -11,12 +11,14 @@ let mainChart = null;
 let comparisonChart = null;
 let slots = [];  // [{country,locType,brand,name,color}]
 
+let countryMS = null, locTypeMS = null, brandMS = null;
+
 const state = {
-  country: '',
+  countries: [],
   countryExclude: false,
-  locType: '',
+  locTypes: [],
   locTypeExclude: false,
-  brand: '',
+  brands: [],
   brandExclude: false,
   dateMin: 0,
   dateMax: Infinity,
@@ -59,26 +61,26 @@ function getMean(arr) {
 
 function filterRecords(records, opts = {}) {
   const {
-    country = '', countryExclude = false,
-    locType = '', locTypeExclude = false,
+    countries = [], countryExclude = false,
+    locTypes = [], locTypeExclude = false,
     dateMin = 0, dateMax = Infinity,
-    brand = '', brandExclude = false,
+    brands = [], brandExclude = false,
     locationName = ''
   } = opts;
-  const brandNorm = normKey(brand);
   return records.filter(r => {
-    if (country) {
-      const m = r.countryName === country;
+    if (countries.length) {
+      const m = countries.includes(r.countryName);
       if (countryExclude ? m : !m) return false;
     }
-    if (locType) {
-      const m = r.osmTag === locType;
+    if (locTypes.length) {
+      const m = locTypes.includes(r.osmTag);
       if (locTypeExclude ? m : !m) return false;
     }
     const t = r._ts;
     if (t < dateMin || t > dateMax) return false;
-    if (brand) {
-      const m = normKey(r.brand) === brandNorm;
+    if (brands.length) {
+      const rNorm = normKey(r.brand);
+      const m = brands.includes(rNorm);
       if (brandExclude ? m : !m) return false;
     }
     if (locationName) {
@@ -403,11 +405,11 @@ function buildChartOptions(multilineXLabels = false) {
 
 function update() {
   const filtered = filterRecords(allRecords, {
-    country: state.country,
+    countries: state.countries,
     countryExclude: state.countryExclude,
-    locType: state.locType,
+    locTypes: state.locTypes,
     locTypeExclude: state.locTypeExclude,
-    brand: state.brand,
+    brands: state.brands,
     brandExclude: state.brandExclude,
     dateMin: state.dateMin,
     dateMax: state.dateMax
@@ -444,11 +446,11 @@ function updateLimitVisibility() {
 function updateComparisonChart() {
   const slotData = slots.map(slot => {
     const filtered = filterRecords(allRecords, {
-      country: slot.country,
+      countries: slot.countries || [],
       countryExclude: slot.countryExclude || false,
-      locType: slot.locType,
+      locTypes: slot.locTypes || [],
       locTypeExclude: slot.locTypeExclude || false,
-      brand: slot.brand,
+      brands: slot.brands || [],
       brandExclude: slot.brandExclude || false,
       locationName: slot.locationName,
       dateMin: state.dateMin,
@@ -474,85 +476,50 @@ function countByLocationKey(records, keyFn) {
   return locSets;
 }
 
-function populateCountryDropdown(records) {
+function buildCountryOpts(records) {
   const locSets = countByLocationKey(records || allRecords, r => r.countryName);
-  const sorted = [...locSets.entries()].sort((a, b) => b[1].size - a[1].size);
-  const sel = document.getElementById('country-select');
-  sel.innerHTML = '<option value="">All Countries</option>';
-  sorted.forEach(([country, locs]) => {
-    const opt = document.createElement('option');
-    opt.value = country;
-    opt.textContent = `${country} (${locs.size})`;
-    sel.appendChild(opt);
-  });
-  if (state.country && [...sel.options].some(o => o.value === state.country)) sel.value = state.country;
+  return [...locSets.entries()]
+    .sort((a, b) => b[1].size - a[1].size)
+    .map(([country, locs]) => ({ value: country, label: `${country} (${locs.size})` }));
 }
 
-function populateLocTypeDropdown(records) {
-  const src = records || allRecords;
-  const locSets = countByLocationKey(src, r => r.osmTag);
-  const sorted = [...locSets.entries()].sort((a, b) => b[1].size - a[1].size);
-  const sel = document.getElementById('loctype-select');
-  sel.innerHTML = '<option value="">All Location Types</option>';
-  sorted.forEach(([tag, locs]) => {
-    const opt = document.createElement('option');
-    opt.value = tag;
-    opt.textContent = `${tag} (${locs.size})`;
-    sel.appendChild(opt);
-  });
-  if (state.locType && [...sel.options].some(o => o.value === state.locType)) sel.value = state.locType;
+function buildLocTypeOpts(records) {
+  const locSets = countByLocationKey(records || allRecords, r => r.osmTag);
+  return [...locSets.entries()]
+    .sort((a, b) => b[1].size - a[1].size)
+    .map(([tag, locs]) => ({ value: tag, label: `${tag} (${locs.size})` }));
 }
 
-function populateMainBrandDropdown(records) {
-  const sel = document.getElementById('brand-select');
-  populateSlotBrandDropdown(sel, records || allRecords);
-  if (state.brand && [...sel.options].some(o => o.value === state.brand)) {
-    sel.value = state.brand;
-  }
-}
-
-function populateSlotBrandDropdown(selectEl, records) {
-  // Group by normalized key; store the first-seen original form as display label
-  const brandMap = new Map(); // normKey -> { label, locs: Set }
-  for (const r of records) {
+function buildBrandOpts(records) {
+  const brandMap = new Map();
+  for (const r of (records || allRecords)) {
     const raw = (r.brand || '').trim();
     if (!raw) continue;
     const key = normKey(raw);
     if (!brandMap.has(key)) brandMap.set(key, { label: raw, locs: new Set() });
     brandMap.get(key).locs.add(`${r.nwrType}-${r.nwrID}`);
   }
-  const sorted = [...brandMap.entries()].sort((a, b) => b[1].locs.size - a[1].locs.size);
-  selectEl.innerHTML = '<option value="">Any Brand</option>';
-  sorted.forEach(([key, { label, locs }]) => {
-    const opt = document.createElement('option');
-    opt.value = key; // normalized — matches what filterRecords expects
-    opt.textContent = `${label} (${locs.size})`;
-    selectEl.appendChild(opt);
-  });
+  return [...brandMap.entries()]
+    .sort((a, b) => b[1].locs.size - a[1].locs.size)
+    .map(([key, { label, locs }]) => ({ value: key, label: `${label} (${locs.size})`, displayLabel: label }));
 }
 
-function populateSlotLocTypeDropdown(selectEl, records) {
-  const locSets = countByLocationKey(records, r => r.osmTag);
-  const sorted = [...locSets.entries()].sort((a, b) => b[1].size - a[1].size);
-  selectEl.innerHTML = '<option value="">Any Type</option>';
-  sorted.forEach(([tag, locs]) => {
-    const opt = document.createElement('option');
-    opt.value = tag;
-    opt.textContent = `${tag} (${locs.size})`;
-    selectEl.appendChild(opt);
-  });
+function populateCountryDropdown(records) {
+  if (!countryMS) return;
+  countryMS.repopulate(buildCountryOpts(records));
+  countryMS.setValues(state.countries);
 }
 
-function populateSlotCountryDropdown(selectEl) {
-  const locSets = countByLocationKey(allRecords, r => r.countryName);
-  const sorted = [...locSets.entries()].sort((a, b) => b[1].size - a[1].size);
-  selectEl.innerHTML = '<option value="">Any Country</option>';
-  sorted.forEach(([country, locs]) => {
-    const opt = document.createElement('option');
-    opt.value = country;
-    opt.textContent = `${country} (${locs.size})`;
-    selectEl.appendChild(opt);
-  });
+function populateLocTypeDropdown(records) {
+  if (!locTypeMS) return;
+  locTypeMS.repopulate(buildLocTypeOpts(records));
+  locTypeMS.setValues(state.locTypes);
+}
+
+function populateMainBrandDropdown(records) {
+  if (!brandMS) return;
+  brandMS.repopulate(buildBrandOpts(records));
+  brandMS.setValues(state.brands);
 }
 
 // ─── Date slider ─────────────────────────────────────────────────────────────
@@ -637,49 +604,224 @@ function updateDateTrack() {
     `linear-gradient(to right, #ddd ${pMin}%, #3b82f6 ${pMin}%, #3b82f6 ${pMax}%, #ddd ${pMax}%)`;
 }
 
-// ─── Comparison slots ────────────────────────────────────────────────────────
+// ─── Multi-select component ───────────────────────────────────────────────────
 
-function slotLabel(slot) {
-  const parts = [];
-  if (slot.country)                         parts.push((slot.countryExclude  ? 'NOT ' : '') + slot.country);
-  if (slot.locType)                         parts.push((slot.locTypeExclude  ? 'NOT ' : '') + slot.locType);
-  if (slot.brandDisplay || slot.brand)      parts.push((slot.brandExclude    ? 'NOT ' : '') + (slot.brandDisplay || slot.brand));
-  if (slot.locationName)                    parts.push(slot.locationName);
-  return parts.length ? parts.join(' · ') : 'All Data';
+function makeMultiSelect({ placeholder, withSearch, onChange }) {
+  let options = [];
+  let selected = new Set();
+  const labelRegistry = new Map(); // value → display label (persists across repopulates)
+
+  const wrap = document.createElement('div');
+  wrap.className = 'ms-wrap';
+
+  const trigger = document.createElement('button');
+  trigger.type = 'button';
+  trigger.className = 'ms-trigger';
+  trigger.textContent = placeholder;
+  wrap.appendChild(trigger);
+
+  const panel = document.createElement('div');
+  panel.className = 'ms-panel';
+  panel.style.display = 'none';
+
+  let searchEl = null;
+  if (withSearch) {
+    searchEl = document.createElement('input');
+    searchEl.type = 'text';
+    searchEl.placeholder = 'Search…';
+    searchEl.className = 'ms-search';
+    searchEl.addEventListener('input', () => {
+      const q = searchEl.value.toLowerCase();
+      list.querySelectorAll('.ms-item').forEach(item => {
+        item.style.display = !q || item.dataset.label.toLowerCase().includes(q) ? '' : 'none';
+      });
+    });
+    panel.appendChild(searchEl);
+  }
+
+  const list = document.createElement('div');
+  list.className = 'ms-list';
+  panel.appendChild(list);
+  wrap.appendChild(panel);
+
+  function updateTrigger() {
+    if (selected.size === 0) {
+      trigger.textContent = placeholder;
+      trigger.title = '';
+    } else {
+      const labels = [...selected].map(v => labelRegistry.get(v) || v);
+      const text = labels.length <= 2 ? labels.join(', ') : `${labels.length} selected`;
+      trigger.textContent = text;
+      trigger.title = labels.join(', ');
+    }
+  }
+
+  function repopulate(opts) {
+    options = opts;
+    for (const o of opts) labelRegistry.set(o.value, o.displayLabel || o.label.replace(/ \(\d+\)$/, ''));
+    list.innerHTML = '';
+    for (const opt of opts) {
+      const lbl = document.createElement('label');
+      lbl.className = 'ms-item';
+      lbl.dataset.label = opt.label;
+      const cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.value = opt.value;
+      cb.checked = selected.has(opt.value);
+      cb.addEventListener('change', () => {
+        if (cb.checked) selected.add(opt.value);
+        else selected.delete(opt.value);
+        updateTrigger();
+        onChange([...selected]);
+      });
+      lbl.appendChild(cb);
+      lbl.appendChild(document.createTextNode(' ' + opt.label));
+      list.appendChild(lbl);
+    }
+    updateTrigger();
+    if (searchEl) { searchEl.value = ''; list.querySelectorAll('.ms-item').forEach(i => i.style.display = ''); }
+  }
+
+  function getValues() { return [...selected]; }
+
+  function setValues(vals) {
+    selected = new Set(vals);
+    list.querySelectorAll('input[type=checkbox]').forEach(cb => { cb.checked = selected.has(cb.value); });
+    updateTrigger();
+  }
+
+  trigger.addEventListener('click', e => {
+    e.stopPropagation();
+    const isOpen = panel.style.display !== 'none';
+    document.querySelectorAll('.ms-panel').forEach(p => { p.style.display = 'none'; });
+    if (!isOpen) {
+      panel.style.display = 'block';
+      if (searchEl) { searchEl.value = ''; list.querySelectorAll('.ms-item').forEach(i => i.style.display = ''); searchEl.focus(); }
+    }
+  });
+
+  document.addEventListener('click', e => {
+    if (!wrap.contains(e.target)) panel.style.display = 'none';
+  });
+
+  return { el: wrap, getValues, setValues, repopulate };
 }
 
-function makeExcludeToggle(sel, initialExclude, onChange) {
+function makeExcludeToggleMS(ms, initialExclude, onChange) {
   const btn = document.createElement('button');
+  btn.type = 'button';
   btn.title = 'Toggle include / exclude';
 
   function syncDisabled() {
-    const empty = sel.value === '';
+    const empty = ms.getValues().length === 0;
     btn.disabled = empty;
     if (empty && btn.classList.contains('exclude')) {
       btn.classList.remove('exclude');
-      sel.classList.remove('exclude-mode');
+      ms.el.classList.remove('exclude-mode');
       btn.textContent = '=';
       onChange(false);
     }
   }
 
-  const startExclude = initialExclude && sel.value !== '';
+  const startExclude = initialExclude && ms.getValues().length > 0;
   btn.className = 'filter-mode-btn' + (startExclude ? ' exclude' : '');
   btn.textContent = startExclude ? '≠' : '=';
-  sel.classList.toggle('exclude-mode', startExclude);
-  btn.disabled = sel.value === '';
+  ms.el.classList.toggle('exclude-mode', startExclude);
+  btn.disabled = ms.getValues().length === 0;
 
   btn.addEventListener('click', () => {
     const nowExclude = !btn.classList.contains('exclude');
     btn.classList.toggle('exclude', nowExclude);
     btn.textContent = nowExclude ? '≠' : '=';
-    sel.classList.toggle('exclude-mode', nowExclude);
+    ms.el.classList.toggle('exclude-mode', nowExclude);
     onChange(nowExclude);
   });
 
-  sel.addEventListener('change', syncDisabled);
   btn._sync = syncDisabled;
   return btn;
+}
+
+function wireExcludeBtn(btnId, ms, stateKey) {
+  const btn = document.getElementById(btnId);
+
+  function sync() {
+    const empty = ms.getValues().length === 0;
+    btn.disabled = empty;
+    if (empty && btn.classList.contains('exclude')) {
+      btn.classList.remove('exclude');
+      btn.textContent = '=';
+      ms.el.classList.remove('exclude-mode');
+      state[stateKey] = false;
+      update();
+    }
+  }
+
+  btn.addEventListener('click', () => {
+    const nowExclude = !btn.classList.contains('exclude');
+    btn.classList.toggle('exclude', nowExclude);
+    btn.textContent = nowExclude ? '≠' : '=';
+    ms.el.classList.toggle('exclude-mode', nowExclude);
+    state[stateKey] = nowExclude;
+    update();
+  });
+
+  btn._sync = sync;
+  sync();
+}
+
+function initMainFilters() {
+  countryMS = makeMultiSelect({
+    placeholder: 'All Countries', withSearch: false,
+    onChange: vals => {
+      state.countries = vals;
+      document.getElementById('country-mode')._sync?.();
+      refreshMainDropdowns();
+      update();
+    }
+  });
+  document.getElementById('country-mode').after(countryMS.el);
+  wireExcludeBtn('country-mode', countryMS, 'countryExclude');
+
+  locTypeMS = makeMultiSelect({
+    placeholder: 'All Location Types', withSearch: false,
+    onChange: vals => {
+      state.locTypes = vals;
+      document.getElementById('loctype-mode')._sync?.();
+      const allTime = applyTimeFilterForCounts(allRecords);
+      const cf = state.countries.length ? allTime.filter(r => state.countries.includes(r.countryName)) : allTime;
+      const tf = vals.length ? cf.filter(r => vals.includes(r.osmTag)) : cf;
+      populateMainBrandDropdown(tf);
+      document.getElementById('brand-mode')._sync?.();
+      update();
+    }
+  });
+  document.getElementById('loctype-mode').after(locTypeMS.el);
+  wireExcludeBtn('loctype-mode', locTypeMS, 'locTypeExclude');
+
+  brandMS = makeMultiSelect({
+    placeholder: 'Any Brand', withSearch: true,
+    onChange: vals => {
+      state.brands = vals;
+      document.getElementById('brand-mode')._sync?.();
+      update();
+    }
+  });
+  document.getElementById('brand-mode').after(brandMS.el);
+  wireExcludeBtn('brand-mode', brandMS, 'brandExclude');
+}
+
+// ─── Comparison slots ────────────────────────────────────────────────────────
+
+function slotLabel(slot) {
+  const parts = [];
+  if (slot.countries?.length) parts.push((slot.countryExclude  ? 'NOT ' : '') + slot.countries.join(', '));
+  if (slot.locTypes?.length)  parts.push((slot.locTypeExclude  ? 'NOT ' : '') + slot.locTypes.join(', '));
+  if (slot.brands?.length) {
+    const names = slot.brands.map(v => slot.brandDisplayMap?.[v] || v).join(', ');
+    parts.push((slot.brandExclude ? 'NOT ' : '') + names);
+  }
+  if (slot.locationName) parts.push(slot.locationName);
+  return parts.length ? parts.join(' · ') : 'All Data';
 }
 
 function renderSlots() {
@@ -691,119 +833,117 @@ function renderSlots() {
     row.className = 'slot-row';
     row.style.borderLeftColor = slot.color;
 
-    // Country select + exclude toggle
-    const cSel = document.createElement('select');
-    cSel.title = 'Country';
-    populateSlotCountryDropdown(cSel);
-    cSel.value = slot.country;
-    const cToggle = makeExcludeToggle(cSel, slot.countryExclude, v => {
-      slot.countryExclude = v;
-      slot.label = slotLabel(slot);
-      labelEl.textContent = slot.label;
-      updateComparisonChart();
+    const labelEl = document.createElement('div');
+    labelEl.className = 'slot-label';
+    labelEl.textContent = slotLabel(slot);
+
+    function cfForSlot() {
+      return slot.countries.length ? allRecords.filter(r => slot.countries.includes(r.countryName)) : allRecords;
+    }
+    function tfForSlot(cf) {
+      return slot.locTypes.length ? cf.filter(r => slot.locTypes.includes(r.osmTag)) : cf;
+    }
+
+    function repopulateLocType() {
+      const opts = buildLocTypeOpts(cfForSlot());
+      tMS.repopulate(opts);
+      tMS.setValues(slot.locTypes);
+      tToggle._sync();
+    }
+    function repopulateBrand() {
+      const opts = buildBrandOpts(tfForSlot(cfForSlot()));
+      opts.forEach(o => { slot.brandDisplayMap[o.value] = o.displayLabel; });
+      bMS.repopulate(opts);
+      bMS.setValues(slot.brands);
+      bToggle._sync();
+    }
+
+    // Country MS
+    const cMS = makeMultiSelect({
+      placeholder: 'All Countries', withSearch: false,
+      onChange: vals => {
+        slot.countries = vals;
+        cToggle._sync();
+        repopulateLocType();
+        repopulateBrand();
+        slot.label = slotLabel(slot); labelEl.textContent = slot.label;
+        updateComparisonChart();
+      }
+    });
+    cMS.repopulate(buildCountryOpts());
+    cMS.setValues(slot.countries);
+    const cToggle = makeExcludeToggleMS(cMS, slot.countryExclude, v => {
+      slot.countryExclude = v; slot.label = slotLabel(slot); labelEl.textContent = slot.label; updateComparisonChart();
     });
 
-    // LocType select + exclude toggle (populated by country filter)
-    const tSel = document.createElement('select');
-    tSel.title = 'Location Type';
-    const countryFiltered = slot.country ? allRecords.filter(r => r.countryName === slot.country) : allRecords;
-    populateSlotLocTypeDropdown(tSel, countryFiltered);
-    tSel.value = slot.locType;
-    const tToggle = makeExcludeToggle(tSel, slot.locTypeExclude, v => {
-      slot.locTypeExclude = v;
-      slot.label = slotLabel(slot);
-      labelEl.textContent = slot.label;
-      updateComparisonChart();
+    // LocType MS
+    const tMS = makeMultiSelect({
+      placeholder: 'All Types', withSearch: false,
+      onChange: vals => {
+        slot.locTypes = vals;
+        tToggle._sync();
+        repopulateBrand();
+        slot.label = slotLabel(slot); labelEl.textContent = slot.label;
+        updateComparisonChart();
+      }
+    });
+    tMS.repopulate(buildLocTypeOpts(cfForSlot()));
+    tMS.setValues(slot.locTypes);
+    const tToggle = makeExcludeToggleMS(tMS, slot.locTypeExclude, v => {
+      slot.locTypeExclude = v; slot.label = slotLabel(slot); labelEl.textContent = slot.label; updateComparisonChart();
     });
 
-    // Brand select + exclude toggle (populated by country + locType)
-    const bSel = document.createElement('select');
-    bSel.title = 'Brand';
-    const typeFiltered = countryFiltered.filter(r => !slot.locType || r.osmTag === slot.locType);
-    populateSlotBrandDropdown(bSel, typeFiltered);
-    bSel.value = slot.brand;
-    const bToggle = makeExcludeToggle(bSel, slot.brandExclude, v => {
-      slot.brandExclude = v;
-      slot.label = slotLabel(slot);
-      labelEl.textContent = slot.label;
-      updateComparisonChart();
+    // Brand MS
+    const bMS = makeMultiSelect({
+      placeholder: 'Any Brand', withSearch: true,
+      onChange: vals => {
+        slot.brands = vals;
+        bToggle._sync();
+        slot.label = slotLabel(slot); labelEl.textContent = slot.label;
+        updateComparisonChart();
+      }
+    });
+    const initBrandOpts = buildBrandOpts(tfForSlot(cfForSlot()));
+    initBrandOpts.forEach(o => { slot.brandDisplayMap[o.value] = o.displayLabel; });
+    bMS.repopulate(initBrandOpts);
+    bMS.setValues(slot.brands);
+    const bToggle = makeExcludeToggleMS(bMS, slot.brandExclude, v => {
+      slot.brandExclude = v; slot.label = slotLabel(slot); labelEl.textContent = slot.label; updateComparisonChart();
     });
 
-    // Name text input
+    // Name input
     const nInp = document.createElement('input');
     nInp.type = 'text';
     nInp.placeholder = 'Name search…';
     nInp.value = slot.locationName || '';
     nInp.style.width = '110px';
-
-    // Color dot
-    const dot = document.createElement('span');
-    dot.className = 'slot-color-dot';
-    dot.style.background = slot.color;
-
-    // Remove button
-    const removeBtn = document.createElement('button');
-    removeBtn.className = 'slot-remove';
-    removeBtn.title = 'Remove';
-    removeBtn.textContent = '×';
-    removeBtn.addEventListener('click', () => { slots.splice(slotIdx, 1); renderSlots(); updateAddSlotBtn(); updateComparisonChart(); });
-
-    // Label (declared early so toggle callbacks can reference it)
-    const labelEl = document.createElement('div');
-    labelEl.className = 'slot-label';
-    labelEl.textContent = slotLabel(slot);
-
-    // Event: country changes → repopulate locType + brand
-    cSel.addEventListener('change', () => {
-      slot.country = cSel.value;
-      const cf = slot.country ? allRecords.filter(r => r.countryName === slot.country) : allRecords;
-      populateSlotLocTypeDropdown(tSel, cf);
-      slot.locType = ''; tSel.value = '';
-      tToggle._sync();
-      const tf = cf.filter(r => !slot.locType || r.osmTag === slot.locType);
-      populateSlotBrandDropdown(bSel, tf);
-      slot.brand = ''; bSel.value = '';
-      bToggle._sync();
-      slot.label = slotLabel(slot); labelEl.textContent = slot.label;
-      updateComparisonChart();
-    });
-
-    tSel.addEventListener('change', () => {
-      slot.locType = tSel.value;
-      const cf = slot.country ? allRecords.filter(r => r.countryName === slot.country) : allRecords;
-      const tf = cf.filter(r => !slot.locType || r.osmTag === slot.locType);
-      populateSlotBrandDropdown(bSel, tf);
-      slot.brand = ''; bSel.value = '';
-      bToggle._sync();
-      slot.label = slotLabel(slot); labelEl.textContent = slot.label;
-      updateComparisonChart();
-    });
-
-    bSel.addEventListener('change', () => {
-      slot.brand = bSel.value;
-      const selOpt = bSel.options[bSel.selectedIndex];
-      slot.brandDisplay = selOpt.value ? selOpt.text.replace(/ \(\d+\)$/, '') : '';
-      slot.label = slotLabel(slot); labelEl.textContent = slot.label;
-      updateComparisonChart();
-    });
-
     nInp.addEventListener('input', () => {
       slot.locationName = nInp.value;
       slot.label = slotLabel(slot); labelEl.textContent = slot.label;
       updateComparisonChart();
     });
 
+    // Color dot + remove button
+    const dot = document.createElement('span');
+    dot.className = 'slot-color-dot';
+    dot.style.background = slot.color;
+
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'slot-remove';
+    removeBtn.title = 'Remove';
+    removeBtn.textContent = '×';
+    removeBtn.addEventListener('click', () => { slots.splice(slotIdx, 1); renderSlots(); updateAddSlotBtn(); updateComparisonChart(); });
+
     row.appendChild(dot);
-    row.appendChild(cToggle); row.appendChild(cSel);
-    row.appendChild(tToggle); row.appendChild(tSel);
-    row.appendChild(bToggle); row.appendChild(bSel);
+    row.appendChild(cToggle); row.appendChild(cMS.el);
+    row.appendChild(tToggle); row.appendChild(tMS.el);
+    row.appendChild(bToggle); row.appendChild(bMS.el);
     row.appendChild(nInp);
     row.appendChild(removeBtn);
     row.appendChild(labelEl);
     container.appendChild(row);
   });
 
-  // Ensure comparison chart canvas is in its wrapper
   const wrap = document.getElementById('comparison-chart-wrap');
   if (!document.getElementById('comparison-chart')) {
     const c = document.createElement('canvas');
@@ -815,10 +955,10 @@ function renderSlots() {
 function addSlot() {
   if (slots.length >= 5) return;
   slots.push({
-    country: '', countryExclude: false,
-    locType: '', locTypeExclude: false,
-    brand: '',   brandExclude: false,
-    brandDisplay: '',
+    countries: [], countryExclude: false,
+    locTypes: [],  locTypeExclude: false,
+    brands: [],    brandExclude: false,
+    brandDisplayMap: {},
     locationName: '',
     color: SLOT_COLORS[slots.length],
     label: 'All Data'
@@ -909,74 +1049,20 @@ function applyTimeFilterForCounts(records) {
 function refreshMainDropdowns() {
   const allTime = applyTimeFilterForCounts(allRecords);
   populateCountryDropdown(allTime);
-  document.getElementById('country-mode')._syncDisabled?.();
+  document.getElementById('country-mode')._sync?.();
 
-  const cf = state.country ? allTime.filter(r => r.countryName === state.country) : allTime;
+  const cf = state.countries.length ? allTime.filter(r => state.countries.includes(r.countryName)) : allTime;
   populateLocTypeDropdown(cf);
-  document.getElementById('loctype-mode')._syncDisabled?.();
+  document.getElementById('loctype-mode')._sync?.();
 
-  const tf = cf.filter(r => !state.locType || r.osmTag === state.locType);
+  const tf = state.locTypes.length ? cf.filter(r => state.locTypes.includes(r.osmTag)) : cf;
   populateMainBrandDropdown(tf);
-  document.getElementById('brand-mode')._syncDisabled?.();
+  document.getElementById('brand-mode')._sync?.();
 }
 
 // ─── Event wiring ────────────────────────────────────────────────────────────
 
 function wireEvents() {
-  document.getElementById('country-select').addEventListener('change', e => {
-    state.country = e.target.value;
-    refreshMainDropdowns();
-    update();
-  });
-
-  document.getElementById('loctype-select').addEventListener('change', e => {
-    state.locType = e.target.value;
-    const cf = state.country ? allRecords.filter(r => r.countryName === state.country) : allRecords;
-    const tf = applyTimeFilter(cf).filter(r => !state.locType || r.osmTag === state.locType);
-    populateMainBrandDropdown(tf);
-    state.brand = document.getElementById('brand-select').value;
-    document.getElementById('brand-mode')._syncDisabled && document.getElementById('brand-mode')._syncDisabled();
-    update();
-  });
-
-  document.getElementById('brand-select').addEventListener('change', e => {
-    state.brand = e.target.value;
-    update();
-  });
-
-  function wireModeBtn(btnId, selectId, stateKey) {
-    const btn = document.getElementById(btnId);
-    const sel = document.getElementById(selectId);
-
-    function syncDisabled() {
-      const empty = sel.value === '';
-      btn.disabled = empty;
-      if (empty && btn.classList.contains('exclude')) {
-        btn.classList.remove('exclude');
-        btn.textContent = '=';
-        sel.classList.remove('exclude-mode');
-        state[stateKey] = false;
-        update();
-      }
-    }
-
-    btn.addEventListener('click', () => {
-      const nowExclude = !btn.classList.contains('exclude');
-      btn.classList.toggle('exclude', nowExclude);
-      btn.textContent = nowExclude ? '≠' : '=';
-      sel.classList.toggle('exclude-mode', nowExclude);
-      state[stateKey] = nowExclude;
-      update();
-    });
-
-    sel.addEventListener('change', syncDisabled);
-    btn._syncDisabled = syncDisabled;
-    syncDisabled();
-  }
-  wireModeBtn('country-mode', 'country-select', 'countryExclude');
-  wireModeBtn('loctype-mode', 'loctype-select', 'locTypeExclude');
-  wireModeBtn('brand-mode', 'brand-select', 'brandExclude');
-
   document.querySelectorAll('input[name="split"]').forEach(radio => {
     radio.addEventListener('change', e => {
       state.splitBy = e.target.value;
@@ -1044,9 +1130,10 @@ async function init() {
 
       loading.style.display = 'none';
 
-      populateCountryDropdown();
-      populateLocTypeDropdown();
-      populateMainBrandDropdown();
+      initMainFilters();
+      populateCountryDropdown(allRecords);
+      populateLocTypeDropdown(allRecords);
+      populateMainBrandDropdown(allRecords);
       initDateSlider();
       initTimeFilters();
       wireEvents();

@@ -159,6 +159,19 @@
         <label><input type="radio" name="split" value="type"> Location Type</label>
         <label><input type="radio" name="split" value="brand"> Brand</label>
         <label><input type="radio" name="split" value="location"> Single Locations</label>
+        <label><input type="radio" name="split" value="time"> Time Period</label>
+      </div>
+      <div id="time-period-wrap" style="display:none;align-items:center;gap:6px;margin-top:4px">
+        <span style="font-size:0.85rem;color:#374151">Period:</span>
+        <select id="time-period-select">
+          <option value="month">Month</option>
+          <option value="weekday">Day of Week</option>
+          <option value="weekday-2a">Mon–Fri vs Sat</option>
+          <option value="weekday-2b">Mon–Fri vs Sat/Sun</option>
+          <option value="weekday-2c">Mon–Sat vs Sun</option>
+          <option value="hour">Hour (UTC)</option>
+          <option value="hour4">4-Hour Periods (UTC)</option>
+        </select>
       </div>
     </div>
 

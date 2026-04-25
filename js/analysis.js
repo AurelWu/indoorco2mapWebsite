@@ -21,6 +21,7 @@ const state = {
   dateMin: 0,
   dateMax: Infinity,
   splitBy: 'none',
+  timePeriod: 'month',
   limitN: 20,
   limitType: 'count',      // criterion for selecting which N make the cut
   displayOrder: 'lowest',  // how to order those N in the chart
@@ -138,6 +139,49 @@ function buildGroups(records, splitBy) {
     return [...locs.values()]
       .map(l => ({ label: l.name, values: l.visits, count: l.visits.length, visitCount: l.visits.length }))
       .filter(g => g.values.length > 0);
+  }
+
+  if (splitBy === 'time') {
+    const tp = state.timePeriod;
+    const pad = n => String(n).padStart(2, '0');
+    const GROUP_DEFS = {
+      month:        MONTH_LABELS.map((l, i) => ({ key: i, label: l })),
+      weekday:      ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'].map((l, i) => ({ key: i, label: l })),
+      'weekday-2a': [{ key: 0, label: 'Weekdays (Mon–Fri)' }, { key: 1, label: 'Saturday' }],
+      'weekday-2b': [{ key: 0, label: 'Weekdays (Mon–Fri)' }, { key: 1, label: 'Weekend (Sat–Sun)' }],
+      'weekday-2c': [{ key: 0, label: 'Mon–Sat' },           { key: 1, label: 'Sunday' }],
+      hour:         Array.from({length:24}, (_, i) => ({ key: i, label: pad(i) + ':00' })),
+      hour4:        [0,1,2,3,4,5].map(i => ({ key: i, label: `${pad(i*4)}–${pad(i*4+3)}` })),
+    };
+
+    function getKey(ts) {
+      const d = new Date(ts);
+      const utcDay = d.getUTCDay(); // 0=Sun…6=Sat
+      switch (tp) {
+        case 'month':       return d.getUTCMonth();
+        case 'weekday':     return utcDay === 0 ? 6 : utcDay - 1; // 0=Mon…6=Sun
+        case 'weekday-2a':  return utcDay >= 1 && utcDay <= 5 ? 0 : (utcDay === 6 ? 1 : null);
+        case 'weekday-2b':  return utcDay >= 1 && utcDay <= 5 ? 0 : 1;
+        case 'weekday-2c':  return utcDay === 0 ? 1 : 0;
+        case 'hour':        return d.getUTCHours();
+        case 'hour4':       return Math.floor(d.getUTCHours() / 4);
+      }
+      return null;
+    }
+
+    const groups = new Map();
+    for (const def of GROUP_DEFS[tp]) groups.set(def.key, { label: def.label, values: [], count: 0 });
+
+    for (const r of records) {
+      if (typeof r.co2readingsAvg !== 'number' || isNaN(r.co2readingsAvg)) continue;
+      const key = getKey(r._ts);
+      if (key === null || !groups.has(key)) continue;
+      const g = groups.get(key);
+      g.values.push(r.co2readingsAvg);
+      g.count++;
+    }
+
+    return [...groups.values()].filter(g => g.values.length > 0);
   }
 
   // type or brand: group by location average first, then by category
@@ -370,7 +414,7 @@ function update() {
   });
 
   let groups = buildGroups(filtered, state.splitBy);
-  if (state.splitBy !== 'none') {
+  if (state.splitBy !== 'none' && state.splitBy !== 'time') {
     groups = applyLimit(groups, state.limitN, state.limitType, state.displayOrder);
   }
 
@@ -386,13 +430,15 @@ function updateSummary(filtered, groups) {
   const locCount = aggregateByLocation(filtered).size;
   const visitCount = filtered.length;
   const catCount = groups.length;
-  el.textContent = `${locCount.toLocaleString()} locations · ${visitCount.toLocaleString()} visits shown` +
-    (state.splitBy !== 'none' ? ` · ${catCount} categories displayed` : '');
+  const catSuffix = state.splitBy === 'time'     ? ` · ${catCount} periods`
+                  : state.splitBy !== 'none'    ? ` · ${catCount} categories`
+                  : '';
+  el.textContent = `${locCount.toLocaleString()} locations · ${visitCount.toLocaleString()} visits shown${catSuffix}`;
 }
 
 function updateLimitVisibility() {
   const wrap = document.getElementById('limit-row');
-  wrap.style.display = state.splitBy === 'none' ? 'none' : 'flex';
+  wrap.style.display = (state.splitBy === 'none' || state.splitBy === 'time') ? 'none' : 'flex';
 }
 
 function updateComparisonChart() {
@@ -934,8 +980,14 @@ function wireEvents() {
   document.querySelectorAll('input[name="split"]').forEach(radio => {
     radio.addEventListener('change', e => {
       state.splitBy = e.target.value;
+      document.getElementById('time-period-wrap').style.display = state.splitBy === 'time' ? 'flex' : 'none';
       update();
     });
+  });
+
+  document.getElementById('time-period-select').addEventListener('change', e => {
+    state.timePeriod = e.target.value;
+    update();
   });
 
   document.getElementById('limit-n').addEventListener('input', e => {

@@ -30,6 +30,7 @@ const state = {
   displayOrder: 'lowest',  // how to order those N in the chart
   showItems: true,
   showOutliers: true,
+  matchLocations: false,
   hours: null,     // null = all; Set of UTC hours (0-23) otherwise
   months: null,    // null = all; Set of UTC months (0=Jan…11=Dec) otherwise
   weekdays: null   // null = all; Set of UTC weekdays (0=Sun…6=Sat) otherwise
@@ -530,27 +531,41 @@ function updateLimitVisibility() {
 }
 
 function updateComparisonChart() {
-  const slotData = slots.map(slot => {
-    const filtered = filterRecords(allRecords, {
-      countries: slot.countries || [],
-      countryExclude: slot.countryExclude || false,
-      locTypes: slot.locTypes || [],
-      locTypeExclude: slot.locTypeExclude || false,
-      brands: slot.brands || [],
-      brandExclude: slot.brandExclude || false,
-      locationName: slot.locationName,
-      dateMin: state.dateMin,
-      dateMax: state.dateMax,
-      hours:    slot.overrideTime ? slot.hours    : state.hours,
-      months:   slot.overrideTime ? slot.months   : state.months,
-      weekdays: slot.overrideTime ? slot.weekdays : state.weekdays
-    });
-    const locs = aggregateByLocation(filtered);
+  // Pass 1: per-slot filtered records
+  const slotFiltered = slots.map(slot => filterRecords(allRecords, {
+    countries: slot.countries || [],
+    countryExclude: slot.countryExclude || false,
+    locTypes: slot.locTypes || [],
+    locTypeExclude: slot.locTypeExclude || false,
+    brands: slot.brands || [],
+    brandExclude: slot.brandExclude || false,
+    locationName: slot.locationName,
+    dateMin: state.dateMin,
+    dateMax: state.dateMax,
+    hours:    slot.overrideTime ? slot.hours    : state.hours,
+    months:   slot.overrideTime ? slot.months   : state.months,
+    weekdays: slot.overrideTime ? slot.weekdays : state.weekdays
+  }));
+
+  // Pass 2: intersect location keys across all slots when matchLocations is on
+  let matchedKeys = null;
+  if (state.matchLocations && slots.length > 1) {
+    const sets = slotFiltered.map(recs => new Set(recs.map(r => `${r.nwrType}-${r.nwrID}`)));
+    matchedKeys = sets.reduce((a, b) => new Set([...a].filter(k => b.has(k))));
+  }
+
+  // Pass 3: aggregate
+  const slotData = slots.map((slot, i) => {
+    const records = matchedKeys
+      ? slotFiltered[i].filter(r => matchedKeys.has(`${r.nwrType}-${r.nwrID}`))
+      : slotFiltered[i];
+    const locs   = aggregateByLocation(records);
     const values = [...locs.values()].map(l => l.avgCO2).filter(v => !isNaN(v));
     const suffix = slotFilterSuffix(slot);
     const label  = suffix.length ? slot.label + ' · ' + suffix.join(' · ') : slot.label;
     return { label, values, count: locs.size, color: slot.color };
   });
+
   renderComparisonChart(slotData);
 }
 
@@ -1348,6 +1363,11 @@ function wireEvents() {
   document.getElementById('show-items-cmp').addEventListener('change', e => applyShowItems(e.target.checked));
   document.getElementById('show-outliers').addEventListener('change', e => applyShowOutliers(e.target.checked));
   document.getElementById('show-outliers-cmp').addEventListener('change', e => applyShowOutliers(e.target.checked));
+
+  document.getElementById('match-locations').addEventListener('change', e => {
+    state.matchLocations = e.target.checked;
+    if (slots.length > 0) updateComparisonChart();
+  });
 
   document.getElementById('toggle-comparison').addEventListener('click', () => {
     const body = document.getElementById('comparison-body');

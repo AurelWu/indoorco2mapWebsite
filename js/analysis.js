@@ -188,13 +188,15 @@ function buildGroups(records, splitBy) {
     return [...groups.values()].filter(g => g.values.length > 0);
   }
 
-  // type or brand: group by location average first, then by category
+  // country / type / brand: group by location average first, then by category
   const locs = aggregateByLocation(records);
   const groups = new Map();
 
   for (const loc of locs.values()) {
     if (isNaN(loc.avgCO2)) continue;
-    const rawLabel = splitBy === 'type' ? (loc.locType || 'Other') : (loc.brand || 'Unknown / Independent');
+    const rawLabel = splitBy === 'country' ? (loc.country  || 'Unknown')
+                   : splitBy === 'type'    ? (loc.locType  || 'Other')
+                   :                         (loc.brand    || 'Unknown / Independent');
     const key = normKey(rawLabel); // case-insensitive grouping key
     if (!groups.has(key)) groups.set(key, { label: rawLabel, values: [], visitCount: 0 });
     groups.get(key).values.push(loc.avgCO2);

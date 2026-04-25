@@ -188,6 +188,10 @@
         <input type="checkbox" id="show-items" checked>
         Show individual values
       </label>
+      <label class="scatter-toggle">
+        <input type="checkbox" id="show-outliers" checked>
+        Show outliers
+      </label>
     </div>
   </section>
 
@@ -212,6 +216,16 @@
     <div id="comparison-body" class="hidden">
       <div id="slots-container"></div>
       <button id="add-slot-btn">+ Add Filter Set</button>
+      <div class="filter-row" style="margin-top:8px">
+        <label class="scatter-toggle">
+          <input type="checkbox" id="show-items-cmp" checked>
+          Show individual values
+        </label>
+        <label class="scatter-toggle">
+          <input type="checkbox" id="show-outliers-cmp" checked>
+          Show outliers
+        </label>
+      </div>
       <div id="comparison-chart-wrap" style="height:480px;margin-top:12px">
         <canvas id="comparison-chart"></canvas>
       </div>

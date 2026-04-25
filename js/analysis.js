@@ -28,6 +28,7 @@ const state = {
   limitType: 'count',      // criterion for selecting which N make the cut
   displayOrder: 'lowest',  // how to order those N in the chart
   showItems: true,
+  showOutliers: true,
   hours: null,     // null = all; Set of UTC hours (0-23) otherwise
   months: null,    // null = all; Set of UTC months (0=Jan…11=Dec) otherwise
   weekdays: null   // null = all; Set of UTC weekdays (0=Sun…6=Sat) otherwise
@@ -228,6 +229,29 @@ function getMedian(arr) {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
+function pct(sorted, p) {
+  const n = sorted.length;
+  if (!n) return 0;
+  const idx = (p / 100) * (n - 1);
+  const lo = Math.floor(idx), hi = Math.ceil(idx);
+  return lo === hi ? sorted[lo] : sorted[lo] + (idx - lo) * (sorted[hi] - sorted[lo]);
+}
+
+function getWhiskerBounds(groups) {
+  let yMin = Infinity, yMax = -Infinity;
+  for (const g of groups) {
+    if (!g.values || !g.values.length) continue;
+    const sorted = [...g.values].sort((a, b) => a - b);
+    const q1 = pct(sorted, 25), q3 = pct(sorted, 75);
+    const fence = 1.5 * (q3 - q1);
+    const wMin = sorted.find(v => v >= q1 - fence) ?? sorted[0];
+    const wMax = [...sorted].reverse().find(v => v <= q3 + fence) ?? sorted[sorted.length - 1];
+    if (wMin < yMin) yMin = wMin;
+    if (wMax > yMax) yMax = wMax;
+  }
+  return isFinite(yMin) ? { yMin, yMax } : null;
+}
+
 // ─── Chart rendering ─────────────────────────────────────────────────────────
 
 function renderMainChart(groups) {
@@ -251,7 +275,9 @@ function renderMainChart(groups) {
 
   if (mainChart) { mainChart.destroy(); mainChart = null; }
 
-  const itemRadius = state.showItems ? 3 : 0;
+  const itemRadius    = state.showItems ? 3 : 0;
+  const outlierRadius = (state.showItems && state.showOutliers) ? 4 : 0;
+  const yBounds       = outlierRadius === 0 ? getWhiskerBounds(groups) : null;
 
   mainChart = new Chart(canvas, {
     type: 'boxplot',
@@ -267,11 +293,11 @@ function renderMainChart(groups) {
         itemStyle: 'circle',
         itemBackgroundColor: 'rgba(59,130,246,0.45)',
         itemBorderWidth: 0,
-        outlierRadius: itemRadius > 0 ? 4 : 0,
+        outlierRadius,
         outlierBackgroundColor: 'rgba(239,68,68,0.6)'
       }]
     },
-    options: buildChartOptions(false)
+    options: buildChartOptions(false, yBounds)
   });
 }
 
@@ -295,7 +321,9 @@ function renderComparisonChart(slotData) {
 
   if (comparisonChart) { comparisonChart.destroy(); comparisonChart = null; }
 
-  const itemRadius = state.showItems ? 3 : 0;
+  const itemRadius    = state.showItems ? 3 : 0;
+  const outlierRadius = (state.showItems && state.showOutliers) ? 4 : 0;
+  const yBounds       = outlierRadius === 0 ? getWhiskerBounds(slotData) : null;
 
   comparisonChart = new Chart(canvas, {
     type: 'boxplot',
@@ -311,15 +339,23 @@ function renderComparisonChart(slotData) {
         itemStyle: 'circle',
         itemBackgroundColor: slotData.map(s => s.color + '80'),
         itemBorderWidth: 0,
-        outlierRadius: itemRadius > 0 ? 4 : 0,
+        outlierRadius,
         outlierBackgroundColor: slotData.map(s => s.color + 'AA')
       }]
     },
-    options: buildChartOptions(true)
+    options: buildChartOptions(true, yBounds)
   });
 }
 
-function buildChartOptions(multilineXLabels = false) {
+function buildChartOptions(multilineXLabels = false, yBounds = null) {
+  const yScale = { title: { display: true, text: 'CO₂ (ppm)', font: { size: 12 } }, ticks: { font: { size: 11 } } };
+  if (yBounds) {
+    const pad = Math.max(30, (yBounds.yMax - yBounds.yMin) * 0.04);
+    yScale.min = Math.max(400, Math.floor(yBounds.yMin - pad));
+    yScale.max = Math.ceil(yBounds.yMax + pad);
+  } else {
+    yScale.min = 400;
+  }
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -378,11 +414,7 @@ function buildChartOptions(multilineXLabels = false) {
       }
     },
     scales: {
-      y: {
-        min: 400,
-        title: { display: true, text: 'CO₂ (ppm)', font: { size: 12 } },
-        ticks: { font: { size: 11 } }
-      },
+      y: yScale,
       x: {
         ticks: {
           maxRotation: multilineXLabels ? 0 : 40,
@@ -1091,11 +1123,24 @@ function wireEvents() {
     update();
   });
 
-  document.getElementById('show-items').addEventListener('change', e => {
-    state.showItems = e.target.checked;
+  function applyShowItems(val) {
+    state.showItems = val;
+    document.getElementById('show-items').checked = val;
+    document.getElementById('show-items-cmp').checked = val;
     update();
     if (slots.length > 0) updateComparisonChart();
-  });
+  }
+  function applyShowOutliers(val) {
+    state.showOutliers = val;
+    document.getElementById('show-outliers').checked = val;
+    document.getElementById('show-outliers-cmp').checked = val;
+    update();
+    if (slots.length > 0) updateComparisonChart();
+  }
+  document.getElementById('show-items').addEventListener('change', e => applyShowItems(e.target.checked));
+  document.getElementById('show-items-cmp').addEventListener('change', e => applyShowItems(e.target.checked));
+  document.getElementById('show-outliers').addEventListener('change', e => applyShowOutliers(e.target.checked));
+  document.getElementById('show-outliers-cmp').addEventListener('change', e => applyShowOutliers(e.target.checked));
 
   document.getElementById('toggle-comparison').addEventListener('click', () => {
     const body = document.getElementById('comparison-body');

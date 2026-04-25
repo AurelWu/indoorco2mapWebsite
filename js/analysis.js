@@ -773,6 +773,21 @@ function makeExcludeToggleMS(ms, initialExclude, onChange) {
   return btn;
 }
 
+// ─── Collapsible panels ──────────────────────────────────────────────────────
+
+function initCollapsiblePanels() {
+  document.querySelectorAll('.an-panel-title').forEach(title => {
+    title.addEventListener('click', e => {
+      if (e.target.closest('button')) return;
+      const panel = title.closest('.an-panel');
+      panel.classList.toggle('collapsed');
+      if (!panel.classList.contains('collapsed')) {
+        setTimeout(() => { mainChart?.resize(); comparisonChart?.resize(); }, 50);
+      }
+    });
+  });
+}
+
 function wireExcludeBtn(btnId, ms, stateKey) {
   const btn = document.getElementById(btnId);
 
@@ -955,11 +970,32 @@ function renderSlots() {
       updateComparisonChart();
     });
 
-    // Color dot + remove button
+    // Color dot
     const dot = document.createElement('span');
     dot.className = 'slot-color-dot';
     dot.style.background = slot.color;
 
+    // Move up/down buttons
+    const moveWrap = document.createElement('div');
+    moveWrap.className = 'slot-move-wrap';
+    const upBtn = document.createElement('button');
+    upBtn.type = 'button'; upBtn.className = 'slot-move'; upBtn.title = 'Move up'; upBtn.textContent = '▲';
+    upBtn.disabled = slotIdx === 0;
+    upBtn.addEventListener('click', () => {
+      [slots[slotIdx - 1], slots[slotIdx]] = [slots[slotIdx], slots[slotIdx - 1]];
+      renderSlots(); updateComparisonChart();
+    });
+    const downBtn = document.createElement('button');
+    downBtn.type = 'button'; downBtn.className = 'slot-move'; downBtn.title = 'Move down'; downBtn.textContent = '▼';
+    downBtn.disabled = slotIdx === slots.length - 1;
+    downBtn.addEventListener('click', () => {
+      [slots[slotIdx + 1], slots[slotIdx]] = [slots[slotIdx], slots[slotIdx + 1]];
+      renderSlots(); updateComparisonChart();
+    });
+    moveWrap.appendChild(upBtn);
+    moveWrap.appendChild(downBtn);
+
+    // Remove button
     const removeBtn = document.createElement('button');
     removeBtn.className = 'slot-remove';
     removeBtn.title = 'Remove';
@@ -967,6 +1003,7 @@ function renderSlots() {
     removeBtn.addEventListener('click', () => { slots.splice(slotIdx, 1); renderSlots(); updateAddSlotBtn(); updateComparisonChart(); });
 
     row.appendChild(dot);
+    row.appendChild(moveWrap);
     row.appendChild(cToggle); row.appendChild(cMS.el);
     row.appendChild(tToggle); row.appendChild(tMS.el);
     row.appendChild(bToggle); row.appendChild(bMS.el);
@@ -1158,6 +1195,8 @@ async function init() {
   const loading = document.getElementById('an-loading');
   const errorEl = document.getElementById('an-error');
   const retryBtn = document.getElementById('an-retry-btn');
+
+  initCollapsiblePanels();
 
   async function load() {
     loading.style.display = 'flex';

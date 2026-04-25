@@ -41,6 +41,38 @@ body {
   text-transform: uppercase;
   color: #6b7280;
   margin-bottom: 10px;
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.an-panel-title::before {
+  content: '▾';
+  font-size: 0.9em;
+  flex-shrink: 0;
+  transition: transform 0.15s;
+}
+
+.an-panel.collapsed .an-panel-title {
+  margin-bottom: 0;
+}
+
+.an-panel.collapsed .an-panel-title::before {
+  transform: rotate(-90deg);
+}
+
+.an-panel.collapsed > *:not(.an-panel-title) {
+  display: none !important;
+}
+
+.an-panel-title-actions {
+  margin-left: auto;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 400;
+  font-size: 1rem;
 }
 
 /* ── Filter rows ─────────────────────────────────────── */
@@ -212,18 +244,6 @@ input[type="text"] {
 
 /* ── Comparison section ──────────────────────────────── */
 
-#comparison-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-}
-
-#comparison-header h2 {
-  font-size: 1rem;
-  font-weight: 600;
-  margin: 0;
-}
-
 #toggle-comparison {
   font-size: 0.82rem;
   padding: 4px 12px;
@@ -296,6 +316,41 @@ input[type="text"] {
 
 .slot-remove:hover {
   color: #ef4444;
+}
+
+.slot-move {
+  background: none;
+  border: 1px solid #e5e7eb;
+  border-radius: 3px;
+  width: 20px;
+  height: 20px;
+  cursor: pointer;
+  font-size: 0.65rem;
+  color: #9ca3af;
+  padding: 0;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.slot-move:hover:not(:disabled) {
+  background: #e5e7eb;
+  color: #374151;
+  border-color: #9ca3af;
+}
+
+.slot-move:disabled {
+  opacity: 0.25;
+  cursor: not-allowed;
+}
+
+.slot-move-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex-shrink: 0;
 }
 
 #add-slot-btn {

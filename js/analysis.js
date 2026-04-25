@@ -432,7 +432,6 @@ function populateCountryDropdown(records) {
   const locSets = countByLocationKey(records || allRecords, r => r.countryName);
   const sorted = [...locSets.entries()].sort((a, b) => b[1].size - a[1].size);
   const sel = document.getElementById('country-select');
-  const prev = sel.value;
   sel.innerHTML = '<option value="">All Countries</option>';
   sorted.forEach(([country, locs]) => {
     const opt = document.createElement('option');
@@ -440,7 +439,7 @@ function populateCountryDropdown(records) {
     opt.textContent = `${country} (${locs.size})`;
     sel.appendChild(opt);
   });
-  if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+  if (state.country && [...sel.options].some(o => o.value === state.country)) sel.value = state.country;
 }
 
 function populateLocTypeDropdown(records) {
@@ -448,7 +447,6 @@ function populateLocTypeDropdown(records) {
   const locSets = countByLocationKey(src, r => r.osmTag);
   const sorted = [...locSets.entries()].sort((a, b) => b[1].size - a[1].size);
   const sel = document.getElementById('loctype-select');
-  const prev = sel.value;
   sel.innerHTML = '<option value="">All Location Types</option>';
   sorted.forEach(([tag, locs]) => {
     const opt = document.createElement('option');
@@ -456,8 +454,7 @@ function populateLocTypeDropdown(records) {
     opt.textContent = `${tag} (${locs.size})`;
     sel.appendChild(opt);
   });
-  // Restore selection if it still exists in the new list
-  if (prev && [...sel.options].some(o => o.value === prev)) sel.value = prev;
+  if (state.locType && [...sel.options].some(o => o.value === state.locType)) sel.value = state.locType;
 }
 
 function populateMainBrandDropdown(records) {
@@ -853,21 +850,28 @@ function applyTimeFilter(records) {
   });
 }
 
+function applyTimeFilterForCounts(records) {
+  return records.filter(r => {
+    if (r._ts < state.dateMin || r._ts > state.dateMax) return false;
+    if (state.hours?.size    && !state.hours.has(new Date(r._ts).getUTCHours()))   return false;
+    if (state.months?.size   && !state.months.has(new Date(r._ts).getUTCMonth()))  return false;
+    if (state.weekdays?.size && !state.weekdays.has(new Date(r._ts).getUTCDay()))  return false;
+    return true;
+  });
+}
+
 function refreshMainDropdowns() {
-  const allTime = applyTimeFilter(allRecords);
+  const allTime = applyTimeFilterForCounts(allRecords);
   populateCountryDropdown(allTime);
-  state.country = document.getElementById('country-select').value;
-  document.getElementById('country-mode')._syncDisabled && document.getElementById('country-mode')._syncDisabled();
+  document.getElementById('country-mode')._syncDisabled?.();
 
   const cf = state.country ? allTime.filter(r => r.countryName === state.country) : allTime;
   populateLocTypeDropdown(cf);
-  state.locType = document.getElementById('loctype-select').value;
-  document.getElementById('loctype-mode')._syncDisabled && document.getElementById('loctype-mode')._syncDisabled();
+  document.getElementById('loctype-mode')._syncDisabled?.();
 
   const tf = cf.filter(r => !state.locType || r.osmTag === state.locType);
   populateMainBrandDropdown(tf);
-  state.brand = document.getElementById('brand-select').value;
-  document.getElementById('brand-mode')._syncDisabled && document.getElementById('brand-mode')._syncDisabled();
+  document.getElementById('brand-mode')._syncDisabled?.();
 }
 
 // ─── Event wiring ────────────────────────────────────────────────────────────

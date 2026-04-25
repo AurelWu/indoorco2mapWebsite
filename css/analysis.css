@@ -225,6 +225,12 @@ input[type="text"] {
   font-size: 0.8rem;
   color: #6b7280;
   margin-bottom: 8px;
+  line-height: 1.6;
+}
+
+.summary-filters {
+  font-size: 0.75rem;
+  color: #9ca3af;
 }
 
 /* ── Chart containers ────────────────────────────────── */

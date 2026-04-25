@@ -10,6 +10,7 @@ let allRecords = [];
 let mainChart = null;
 let comparisonChart = null;
 let slots = [];  // [{country,locType,brand,name,color}]
+let globalDateMin = 0, globalDateMax = Infinity;
 
 let countryMS = null, locTypeMS = null, brandMS = null;
 
@@ -458,15 +459,69 @@ function update() {
   if (slots.length > 0) updateComparisonChart();
 }
 
+function rangeStr(sortedVals, fmt) {
+  if (!sortedVals.length) return '';
+  const segs = [];
+  let s = sortedVals[0], p = s;
+  for (let i = 1; i < sortedVals.length; i++) {
+    if (sortedVals[i] === p + 1) { p = sortedVals[i]; }
+    else { segs.push(s === p ? fmt(s) : `${fmt(s)}–${fmt(p)}`); s = p = sortedVals[i]; }
+  }
+  segs.push(s === p ? fmt(s) : `${fmt(s)}–${fmt(p)}`);
+  return segs.join(', ');
+}
+
 function updateSummary(filtered, groups) {
   const el = document.getElementById('chart-summary');
   const locCount = aggregateByLocation(filtered).size;
   const visitCount = filtered.length;
   const catCount = groups.length;
-  const catSuffix = state.splitBy === 'time'     ? ` · ${catCount} periods`
-                  : state.splitBy !== 'none'    ? ` · ${catCount} categories`
+  const catSuffix = state.splitBy === 'time'  ? ` · ${catCount} periods`
+                  : state.splitBy !== 'none' ? ` · ${catCount} categories`
                   : '';
-  el.textContent = `${locCount.toLocaleString()} locations · ${visitCount.toLocaleString()} visits shown${catSuffix}`;
+
+  const parts = [];
+
+  if (state.countries.length)
+    parts.push((state.countryExclude ? '≠ ' : '') + state.countries.join(', '));
+
+  if (state.locTypes.length)
+    parts.push((state.locTypeExclude ? '≠ ' : '') + state.locTypes.join(', '));
+
+  if (state.brands.length) {
+    const names = state.brands.map(v => brandMS?.getLabel(v) ?? v).join(', ');
+    parts.push((state.brandExclude ? '≠ ' : '') + names);
+  }
+
+  const fmtDate = ts => new Date(ts).toLocaleDateString('en-CA');
+  if (state.dateMin > globalDateMin || state.dateMax < globalDateMax)
+    parts.push(`${fmtDate(state.dateMin)} – ${fmtDate(state.dateMax)}`);
+
+  if (state.months) {
+    const MO = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    parts.push('Months: ' + rangeStr([...state.months].sort((a,b)=>a-b), m => MO[m]));
+  }
+
+  if (state.weekdays) {
+    const ORDER = [1,2,3,4,5,6,0];
+    const DNAME = {0:'Sun',1:'Mon',2:'Tue',3:'Wed',4:'Thu',5:'Fri',6:'Sat'};
+    parts.push('Days: ' + ORDER.filter(d => state.weekdays.has(d)).map(d => DNAME[d]).join(', '));
+  }
+
+  if (state.hours)
+    parts.push('Hours: ' + rangeStr([...state.hours].sort((a,b)=>a-b), h => String(h).padStart(2,'0')));
+
+  el.innerHTML = '';
+  const line1 = document.createElement('span');
+  line1.textContent = `${locCount.toLocaleString()} locations · ${visitCount.toLocaleString()} visits shown${catSuffix}`;
+  el.appendChild(line1);
+  if (parts.length) {
+    el.appendChild(document.createElement('br'));
+    const line2 = document.createElement('span');
+    line2.className = 'summary-filters';
+    line2.textContent = parts.join(' · ');
+    el.appendChild(line2);
+  }
 }
 
 function updateLimitVisibility() {
@@ -492,7 +547,9 @@ function updateComparisonChart() {
     });
     const locs = aggregateByLocation(filtered);
     const values = [...locs.values()].map(l => l.avgCO2).filter(v => !isNaN(v));
-    return { label: slot.label, values, count: locs.size, color: slot.color };
+    const suffix = slotFilterSuffix(slot);
+    const label  = suffix.length ? slot.label + ' · ' + suffix.join(' · ') : slot.label;
+    return { label, values, count: locs.size, color: slot.color };
   });
   renderComparisonChart(slotData);
 }
@@ -567,6 +624,8 @@ function initDateSlider() {
 
   state.dateMin = tMin;
   state.dateMax = tMax;
+  globalDateMin = tMin;
+  globalDateMax = tMax;
 
   const sMin = document.getElementById('date-slider-min');
   const sMax = document.getElementById('date-slider-max');
@@ -738,7 +797,9 @@ function makeMultiSelect({ placeholder, withSearch, onChange }) {
     if (!wrap.contains(e.target)) panel.style.display = 'none';
   });
 
-  return { el: wrap, getValues, setValues, repopulate };
+  function getLabel(v) { return labelRegistry.get(v) || v; }
+
+  return { el: wrap, getValues, setValues, repopulate, getLabel };
 }
 
 function makeExcludeToggleMS(ms, initialExclude, onChange) {
@@ -871,6 +932,29 @@ function slotLabel(slot) {
   }
   if (slot.locationName) parts.push(slot.locationName);
   return parts.length ? parts.join(' · ') : 'All Data';
+}
+
+function slotFilterSuffix(slot) {
+  const MO    = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  const DNAME = {0:'Sun',1:'Mon',2:'Tue',3:'Wed',4:'Thu',5:'Fri',6:'Sat'};
+  const ORDER = [1,2,3,4,5,6,0];
+  const fmtH  = h => String(h).padStart(2,'0');
+  const fmtD  = ts => new Date(ts).toLocaleDateString('en-CA');
+
+  const hours    = slot.overrideTime ? slot.hours    : state.hours;
+  const months   = slot.overrideTime ? slot.months   : state.months;
+  const weekdays = slot.overrideTime ? slot.weekdays : state.weekdays;
+
+  const parts = [];
+  if (state.dateMin > globalDateMin || state.dateMax < globalDateMax)
+    parts.push(`${fmtD(state.dateMin)}–${fmtD(state.dateMax)}`);
+  if (months)
+    parts.push(rangeStr([...months].sort((a,b)=>a-b), m => MO[m]));
+  if (weekdays)
+    parts.push(ORDER.filter(d => weekdays.has(d)).map(d => DNAME[d]).join(', '));
+  if (hours)
+    parts.push(rangeStr([...hours].sort((a,b)=>a-b), fmtH));
+  return parts;
 }
 
 function makeSlotTimePanel(slot) {

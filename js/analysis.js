@@ -28,8 +28,9 @@ const state = {
   limitN: 20,
   limitType: 'count',      // criterion for selecting which N make the cut
   displayOrder: 'lowest',  // how to order those N in the chart
-  showItems: true,
-  showOutliers: true,
+  minEntries: 1,           // hide categories with fewer than this many entries
+  pointMode: 'all',  // 'none' | 'outliers' | 'all'
+  showMedian: false,
   matchLocations: false,
   hours: null,     // null = all; Set of UTC hours (0-23) otherwise
   months: null,    // null = all; Set of UTC months (0=Jan…11=Dec) otherwise
@@ -257,6 +258,34 @@ function getWhiskerBounds(groups) {
 
 // ─── Chart rendering ─────────────────────────────────────────────────────────
 
+const medianLabelPlugin = {
+  id: 'medianLabels',
+  afterDatasetsDraw(chart) {
+    if (!state.showMedian) return;
+    const { ctx, scales } = chart;
+    chart.data.datasets.forEach((dataset, di) => {
+      const meta = chart.getDatasetMeta(di);
+      dataset.data.forEach((vals, i) => {
+        if (!Array.isArray(vals) || vals.length === 0) return;
+        const el = meta.data[i];
+        if (!el) return;
+        const sorted = [...vals].filter(v => typeof v === 'number' && isFinite(v)).sort((a, b) => a - b);
+        if (!sorted.length) return;
+        const n = sorted.length;
+        const median = n % 2 === 0 ? (sorted[n / 2 - 1] + sorted[n / 2]) / 2 : sorted[Math.floor(n / 2)];
+        const yPx = scales.y.getPixelForValue(median);
+        ctx.save();
+        ctx.font = 'bold 11px sans-serif';
+        ctx.fillStyle = 'rgba(20,20,20,0.75)';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'top';
+        ctx.fillText(Math.round(median), el.x, yPx + 3);
+        ctx.restore();
+      });
+    });
+  }
+};
+
 function renderMainChart(groups) {
   const wrap = document.getElementById('main-chart-wrap');
   const canvas = document.getElementById('main-chart');
@@ -278,9 +307,9 @@ function renderMainChart(groups) {
 
   if (mainChart) { mainChart.destroy(); mainChart = null; }
 
-  const itemRadius    = state.showItems ? 3 : 0;
-  const outlierRadius = (state.showItems && state.showOutliers) ? 4 : 0;
-  const yBounds       = outlierRadius === 0 ? getWhiskerBounds(groups) : null;
+  const itemRadius    = state.pointMode === 'all' ? 3 : 0;
+  const outlierRadius = state.pointMode !== 'none' ? 4 : 0;
+  const yBounds       = state.pointMode === 'none' ? getWhiskerBounds(groups) : null;
 
   mainChart = new Chart(canvas, {
     type: 'boxplot',
@@ -300,7 +329,8 @@ function renderMainChart(groups) {
         outlierBackgroundColor: 'rgba(239,68,68,0.6)'
       }]
     },
-    options: buildChartOptions(false, yBounds)
+    options: buildChartOptions(false, yBounds),
+    plugins: [medianLabelPlugin]
   });
 }
 
@@ -324,9 +354,9 @@ function renderComparisonChart(slotData) {
 
   if (comparisonChart) { comparisonChart.destroy(); comparisonChart = null; }
 
-  const itemRadius    = state.showItems ? 3 : 0;
-  const outlierRadius = (state.showItems && state.showOutliers) ? 4 : 0;
-  const yBounds       = outlierRadius === 0 ? getWhiskerBounds(slotData) : null;
+  const itemRadius    = state.pointMode === 'all' ? 3 : 0;
+  const outlierRadius = state.pointMode !== 'none' ? 4 : 0;
+  const yBounds       = state.pointMode === 'none' ? getWhiskerBounds(slotData) : null;
 
   comparisonChart = new Chart(canvas, {
     type: 'boxplot',
@@ -346,7 +376,8 @@ function renderComparisonChart(slotData) {
         outlierBackgroundColor: slotData.map(s => s.color + 'AA')
       }]
     },
-    options: buildChartOptions(true, yBounds)
+    options: buildChartOptions(true, yBounds),
+    plugins: [medianLabelPlugin]
   });
 }
 
@@ -451,8 +482,9 @@ function update() {
   });
 
   let groups = buildGroups(filtered, state.splitBy);
-  if (state.splitBy !== 'none' && state.splitBy !== 'time') {
-    groups = applyLimit(groups, state.limitN, state.limitType, state.displayOrder);
+  if (state.splitBy !== 'none') {
+    if (state.minEntries > 1) groups = groups.filter(g => g.count >= state.minEntries);
+    if (state.splitBy !== 'time') groups = applyLimit(groups, state.limitN, state.limitType, state.displayOrder);
   }
 
   renderMainChart(groups);
@@ -1347,24 +1379,27 @@ function wireEvents() {
     update();
   });
 
-  function applyShowItems(val) {
-    state.showItems = val;
-    document.getElementById('show-items').checked = val;
-    document.getElementById('show-items-cmp').checked = val;
+  document.getElementById('min-entries').addEventListener('input', e => {
+    const n = parseInt(e.target.value, 10);
+    if (n >= 1) { state.minEntries = n; update(); }
+  });
+
+  const POINT_MODE_SEL = 'input[name="point-mode"], input[name="point-mode-cmp"]';
+  function applyPointMode(val) {
+    state.pointMode = val;
+    document.querySelectorAll(POINT_MODE_SEL).forEach(r => { r.checked = r.value === val; });
     update();
     if (slots.length > 0) updateComparisonChart();
   }
-  function applyShowOutliers(val) {
-    state.showOutliers = val;
-    document.getElementById('show-outliers').checked = val;
-    document.getElementById('show-outliers-cmp').checked = val;
+  document.querySelectorAll(POINT_MODE_SEL).forEach(r => {
+    r.addEventListener('change', e => { if (e.target.checked) applyPointMode(e.target.value); });
+  });
+
+  document.getElementById('show-median').addEventListener('change', e => {
+    state.showMedian = e.target.checked;
     update();
     if (slots.length > 0) updateComparisonChart();
-  }
-  document.getElementById('show-items').addEventListener('change', e => applyShowItems(e.target.checked));
-  document.getElementById('show-items-cmp').addEventListener('change', e => applyShowItems(e.target.checked));
-  document.getElementById('show-outliers').addEventListener('change', e => applyShowOutliers(e.target.checked));
-  document.getElementById('show-outliers-cmp').addEventListener('change', e => applyShowOutliers(e.target.checked));
+  });
 
   document.getElementById('match-locations').addEventListener('change', e => {
     state.matchLocations = e.target.checked;

@@ -182,16 +182,19 @@
         <option value="highest">Highest Median CO₂</option>
         <option value="count">Most Frequent</option>
       </select>
+      <span style="font-size:0.85rem;color:#374151;white-space:nowrap">min. n:</span>
+      <input type="number" id="min-entries" value="1" min="1" max="9999" style="width:60px">
     </div>
 
     <div class="filter-row">
-      <label class="scatter-toggle">
-        <input type="checkbox" id="show-items" checked>
-        Show individual values
-      </label>
-      <label class="scatter-toggle">
-        <input type="checkbox" id="show-outliers" checked>
-        Show outliers
+      <div class="radio-group">
+        <label><input type="radio" name="point-mode" id="point-mode-none" value="none"> Boxplot only</label>
+        <label><input type="radio" name="point-mode" id="point-mode-outliers" value="outliers"> Show outliers</label>
+        <label><input type="radio" name="point-mode" id="point-mode-all" value="all" checked> Show all individual values</label>
+      </div>
+      <label class="scatter-toggle" style="margin-left:12px">
+        <input type="checkbox" id="show-median">
+        Show median value
       </label>
     </div>
   </section>
@@ -219,14 +222,11 @@
       <div id="slots-container"></div>
       <button id="add-slot-btn">+ Add Filter Set</button>
       <div class="filter-row" style="margin-top:8px">
-        <label class="scatter-toggle">
-          <input type="checkbox" id="show-items-cmp" checked>
-          Show individual values
-        </label>
-        <label class="scatter-toggle">
-          <input type="checkbox" id="show-outliers-cmp" checked>
-          Show outliers
-        </label>
+        <div class="radio-group">
+          <label><input type="radio" name="point-mode-cmp" id="point-mode-none-cmp" value="none"> Boxplot only</label>
+          <label><input type="radio" name="point-mode-cmp" id="point-mode-outliers-cmp" value="outliers"> Show outliers</label>
+          <label><input type="radio" name="point-mode-cmp" id="point-mode-all-cmp" value="all" checked> Show all individual values</label>
+        </div>
         <label class="scatter-toggle">
           <input type="checkbox" id="match-locations">
           Match locations across groups

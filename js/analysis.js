@@ -66,7 +66,10 @@ function filterRecords(records, opts = {}) {
     locTypes = [], locTypeExclude = false,
     dateMin = 0, dateMax = Infinity,
     brands = [], brandExclude = false,
-    locationName = ''
+    locationName = '',
+    hours    = state.hours,
+    months   = state.months,
+    weekdays = state.weekdays
   } = opts;
   return records.filter(r => {
     if (countries.length) {
@@ -88,13 +91,9 @@ function filterRecords(records, opts = {}) {
       const n = (r.name || '').toLowerCase();
       if (!n.includes(locationName.toLowerCase())) return false;
     }
-    // Global time-of-day / month / weekday filters (applied to all views incl. comparison)
-    if (state.hours || state.months || state.weekdays) {
-      const d = new Date(r._ts);
-      if (state.hours    && !state.hours.has(d.getUTCHours()))   return false;
-      if (state.months   && !state.months.has(d.getUTCMonth()))  return false;
-      if (state.weekdays && !state.weekdays.has(d.getUTCDay()))  return false;
-    }
+    if (hours    && !hours.has(new Date(r._ts).getUTCHours()))   return false;
+    if (months   && !months.has(new Date(r._ts).getUTCMonth()))  return false;
+    if (weekdays && !weekdays.has(new Date(r._ts).getUTCDay()))  return false;
     return true;
   });
 }
@@ -486,7 +485,10 @@ function updateComparisonChart() {
       brandExclude: slot.brandExclude || false,
       locationName: slot.locationName,
       dateMin: state.dateMin,
-      dateMax: state.dateMax
+      dateMax: state.dateMax,
+      hours:    slot.overrideTime ? slot.hours    : state.hours,
+      months:   slot.overrideTime ? slot.months   : state.months,
+      weekdays: slot.overrideTime ? slot.weekdays : state.weekdays
     });
     const locs = aggregateByLocation(filtered);
     const values = [...locs.values()].map(l => l.avgCO2).filter(v => !isNaN(v));
@@ -871,13 +873,77 @@ function slotLabel(slot) {
   return parts.length ? parts.join(' · ') : 'All Data';
 }
 
+function makeSlotTimePanel(slot) {
+  const panel = document.createElement('div');
+  panel.className = 'slot-time-panel';
+  panel.style.borderLeftColor = slot.color;
+  if (!slot.overrideTime) panel.style.display = 'none';
+
+  function addGroup(label, items, groupKey, totalCount) {
+    const wrap = document.createElement('div');
+    wrap.className = 'time-filter-group';
+
+    const labelEl = document.createElement('div');
+    labelEl.className = 'time-filter-label';
+    labelEl.textContent = label + ' ';
+
+    const allBtn = document.createElement('button');
+    allBtn.type = 'button'; allBtn.className = 'chip-ctrl'; allBtn.textContent = 'All';
+    const noneBtn = document.createElement('button');
+    noneBtn.type = 'button'; noneBtn.className = 'chip-ctrl'; noneBtn.textContent = 'None';
+    labelEl.appendChild(allBtn);
+    labelEl.appendChild(noneBtn);
+
+    const chipGroup = document.createElement('div');
+    chipGroup.className = 'chip-group';
+
+    items.forEach(({l, v}) => {
+      const chip = document.createElement('span');
+      chip.className = 'chip' + (!slot[groupKey] || slot[groupKey].has(v) ? ' active' : '');
+      chip.textContent = l;
+      chip.dataset.value = v;
+      chip.addEventListener('click', () => {
+        chip.classList.toggle('active');
+        const active = [...chipGroup.querySelectorAll('.chip.active')].map(c => +c.dataset.value);
+        slot[groupKey] = active.length === totalCount ? null : new Set(active);
+        updateComparisonChart();
+      });
+      chipGroup.appendChild(chip);
+    });
+
+    allBtn.addEventListener('click', () => {
+      chipGroup.querySelectorAll('.chip').forEach(c => c.classList.add('active'));
+      slot[groupKey] = null;
+      updateComparisonChart();
+    });
+    noneBtn.addEventListener('click', () => {
+      chipGroup.querySelectorAll('.chip').forEach(c => c.classList.remove('active'));
+      slot[groupKey] = new Set();
+      updateComparisonChart();
+    });
+
+    wrap.appendChild(labelEl);
+    wrap.appendChild(chipGroup);
+    panel.appendChild(wrap);
+  }
+
+  addGroup('Months',     MONTH_LABELS.map((l, i) => ({l, v: i})),                                    'months',   12);
+  addGroup('Days',       WEEKDAY_ITEMS,                                                               'weekdays',  7);
+  addGroup('Hours UTC',  Array.from({length:24}, (_, i) => ({l: String(i).padStart(2,'0'), v: i})), 'hours',    24);
+
+  return panel;
+}
+
 function renderSlots() {
   const container = document.getElementById('slots-container');
   container.innerHTML = '';
 
   slots.forEach((slot, slotIdx) => {
+    const slotWrap = document.createElement('div');
+    slotWrap.className = 'slot-wrap';
+
     const row = document.createElement('div');
-    row.className = 'slot-row';
+    row.className = 'slot-row' + (slot.overrideTime ? ' has-time-panel' : '');
     row.style.borderLeftColor = slot.color;
 
     const labelEl = document.createElement('div');
@@ -995,6 +1061,21 @@ function renderSlots() {
     moveWrap.appendChild(upBtn);
     moveWrap.appendChild(downBtn);
 
+    // Time override toggle
+    const timePanel = makeSlotTimePanel(slot);
+    const timeToggleBtn = document.createElement('button');
+    timeToggleBtn.type = 'button';
+    timeToggleBtn.className = 'slot-time-toggle' + (slot.overrideTime ? ' active' : '');
+    timeToggleBtn.title = 'Override time filters for this slot';
+    timeToggleBtn.textContent = '⏱';
+    timeToggleBtn.addEventListener('click', () => {
+      slot.overrideTime = !slot.overrideTime;
+      timeToggleBtn.classList.toggle('active', slot.overrideTime);
+      timePanel.style.display = slot.overrideTime ? 'block' : 'none';
+      row.classList.toggle('has-time-panel', slot.overrideTime);
+      updateComparisonChart();
+    });
+
     // Remove button
     const removeBtn = document.createElement('button');
     removeBtn.className = 'slot-remove';
@@ -1008,9 +1089,12 @@ function renderSlots() {
     row.appendChild(tToggle); row.appendChild(tMS.el);
     row.appendChild(bToggle); row.appendChild(bMS.el);
     row.appendChild(nInp);
+    row.appendChild(timeToggleBtn);
     row.appendChild(removeBtn);
     row.appendChild(labelEl);
-    container.appendChild(row);
+    slotWrap.appendChild(row);
+    slotWrap.appendChild(timePanel);
+    container.appendChild(slotWrap);
   });
 
   const wrap = document.getElementById('comparison-chart-wrap');
@@ -1029,6 +1113,8 @@ function addSlot() {
     brands: [],    brandExclude: false,
     brandDisplayMap: {},
     locationName: '',
+    overrideTime: false,
+    hours: null, months: null, weekdays: null,
     color: SLOT_COLORS[slots.length],
     label: 'All Data'
   });

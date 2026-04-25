@@ -353,6 +353,51 @@ input[type="text"] {
   flex-shrink: 0;
 }
 
+.slot-row.has-time-panel {
+  border-radius: 6px 6px 0 0;
+}
+
+.slot-time-toggle {
+  background: none;
+  border: 1px solid #e5e7eb;
+  border-radius: 4px;
+  height: 26px;
+  padding: 0 6px;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: #9ca3af;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.slot-time-toggle:hover {
+  background: #f3f4f6;
+  border-color: #9ca3af;
+}
+
+.slot-time-toggle.active {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #3b82f6;
+}
+
+.slot-time-panel {
+  padding: 8px 10px 6px;
+  background: #f9fafb;
+  border-left: 4px solid;
+  border-right: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb;
+  border-radius: 0 0 6px 6px;
+}
+
+.slot-time-panel .time-filter-group {
+  margin-bottom: 6px;
+}
+
+.slot-time-panel .time-filter-group:last-child {
+  margin-bottom: 0;
+}
+
 #add-slot-btn {
   font-size: 0.82rem;
   padding: 5px 12px;

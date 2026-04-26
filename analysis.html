@@ -84,6 +84,12 @@
       </label>
     </div>
 
+  </section>
+
+  <!-- Time filters -->
+  <section class="an-panel">
+    <div class="an-panel-title">Time Filters</div>
+
     <div class="filter-row">
       <label class="filter-label">
         <span>Date Range</span>
@@ -105,11 +111,6 @@
         </div>
       </label>
     </div>
-  </section>
-
-  <!-- Time filters -->
-  <section class="an-panel">
-    <div class="an-panel-title">Time Filters</div>
 
     <div class="time-filter-group">
       <div class="time-filter-label">
@@ -136,6 +137,17 @@
         <button class="chip-ctrl" data-action="none" data-group="hours">None</button>
       </div>
       <div class="chip-group" id="hour-chips"></div>
+    </div>
+  </section>
+
+  <!-- Frequency Filters -->
+  <section class="an-panel">
+    <div class="an-panel-title">Frequency Filters</div>
+    <div class="filter-row">
+      <span style="font-size:0.85rem;color:#374151;white-space:nowrap">Min. locations per category:</span>
+      <input type="number" id="min-entries" value="1" min="1" max="9999" style="width:60px">
+      <span style="font-size:0.85rem;color:#374151;white-space:nowrap">Min. measurements per location:</span>
+      <input type="number" id="min-meas-per-loc" value="1" min="1" max="9999" style="width:60px">
     </div>
   </section>
 
@@ -182,13 +194,6 @@
         <option value="highest">Highest Median CO₂</option>
         <option value="count">Most Frequent</option>
       </select>
-    </div>
-
-    <div class="filter-row" id="threshold-row">
-      <span style="font-size:0.85rem;color:#374151;white-space:nowrap">Min. locations per category:</span>
-      <input type="number" id="min-entries" value="1" min="1" max="9999" style="width:60px">
-      <span style="font-size:0.85rem;color:#374151;white-space:nowrap">Min. measurements per location:</span>
-      <input type="number" id="min-meas-per-loc" value="1" min="1" max="9999" style="width:60px">
     </div>
 
     <div class="filter-row">

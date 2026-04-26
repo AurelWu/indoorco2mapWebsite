@@ -517,9 +517,17 @@ function updateSummary(filtered, groups) {
   const locCount = aggregateByLocation(filtered).size;
   const visitCount = filtered.length;
   const catCount = groups.length;
-  const catSuffix = state.splitBy === 'time'  ? ` · ${catCount} periods`
-                  : state.splitBy !== 'none' ? ` · ${catCount} categories`
-                  : '';
+  const LIMIT_QUALIFIER = { count: 'most frequent', highest: 'highest median CO₂', lowest: 'lowest median CO₂' };
+  const catSuffix = state.splitBy === 'time'    ? ` · ${catCount} periods`
+                  : state.splitBy === 'none'    ? ''
+                  : (() => {
+                      const noun = state.splitBy === 'country'  ? 'countries'
+                                 : state.splitBy === 'type'     ? 'location types'
+                                 : state.splitBy === 'brand'    ? 'brands'
+                                 : 'locations';
+                      const q = LIMIT_QUALIFIER[state.limitType];
+                      return ` · ${catCount} ${noun}${q ? ` (${q})` : ''}`;
+                    })();
 
   const parts = [];
 
@@ -1354,9 +1362,223 @@ function refreshMainDropdowns() {
   document.getElementById('brand-mode')._sync?.();
 }
 
+// ─── Social media export ──────────────────────────────────────────────────────
+
+async function renderExportChartImage(W, H) {
+  const srcDs = mainChart.data.datasets[0];
+  const yMin  = mainChart.scales?.y?.min ?? 400;
+  const yMax  = mainChart.scales?.y?.max;
+
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  cv.style.cssText = 'position:fixed;left:-9999px;visibility:hidden';
+  document.body.appendChild(cv);
+
+  const FONT = 18;
+  const yScale = {
+    title: { display: true, text: 'CO₂ (ppm)', font: { size: FONT } },
+    ticks: { font: { size: FONT } },
+    min: yMin
+  };
+  if (yMax != null) yScale.max = yMax;
+
+  const chart = new Chart(cv, {
+    type: 'boxplot',
+    data: {
+      labels: mainChart.data.labels,
+      datasets: [{ ...srcDs }]
+    },
+    options: {
+      responsive: false,
+      maintainAspectRatio: false,
+      animation: false,
+      devicePixelRatio: 1,
+      plugins: { legend: { display: false }, title: { display: false }, tooltip: { enabled: false } },
+      scales: {
+        y: yScale,
+        x: {
+          ticks: {
+            font: { size: FONT },
+            maxRotation: 40,
+            minRotation: 0,
+            callback: function(val) {
+              const lbl = this.getLabelForValue(val);
+              if (!lbl) return '';
+              if (lbl.includes(' · ')) return lbl.split(' · ');
+              return lbl;
+            }
+          }
+        }
+      }
+    },
+    plugins: [medianLabelPlugin]
+  });
+
+  const dataUrl = chart.toBase64Image('image/png', 1);
+  chart.destroy();
+  document.body.removeChild(cv);
+  return dataUrl;
+}
+
+async function generateSocialCard() {
+  if (!mainChart) return null;
+  await document.fonts.ready;
+
+  // Use CSS (logical) dimensions for aspect ratio to undo DPR scaling
+  const cssW = mainChart.canvas.offsetWidth || mainChart.canvas.width;
+  const cssH = mainChart.canvas.offsetHeight || mainChart.canvas.height;
+
+  const W = 1200;
+  const HEADER_H = 76;   // blue bar
+  const TITLE_H  = 155;  // title + stats + filter desc + padding
+
+  // Scale chart to fill export width, preserving on-screen CSS aspect ratio
+  const chartDispH = Math.round((cssH / cssW) * W);
+  const H = HEADER_H + TITLE_H + chartDispH;
+
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+
+  // Background
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  // ── Header bar ──────────────────────────────────────────
+  ctx.fillStyle = '#1e40af';
+  ctx.fillRect(0, 0, W, HEADER_H);
+
+  ctx.font = 'bold 22px "Titillium Web", system-ui, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('indoorco2map.com', 32, HEADER_H / 2);
+
+  const dateStr = new Date().toLocaleDateString('en', { month: 'short', year: 'numeric' });
+  ctx.font = '18px "Titillium Web", system-ui, sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.72)';
+  ctx.textAlign = 'right';
+  ctx.fillText(dateStr, W - 32, HEADER_H / 2);
+  ctx.textAlign = 'left';
+
+  // ── Title + stats + filter description ──────────────────
+  const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  const splitSuffix = {
+    none: '', country: ' by Country', type: ' by Location Type',
+    brand: ' by Brand', location: ' — Individual Locations', time: ' by Time Period',
+  };
+  let titleContext = '';
+  if (state.splitBy !== 'type' && state.locTypes.length === 1 && !state.locTypeExclude)
+    titleContext = ' in ' + cap(locTypeMS?.getLabel(state.locTypes[0]) || state.locTypes[0]);
+  else if (state.splitBy !== 'country' && state.countries.length === 1 && !state.countryExclude)
+    titleContext = ' in ' + cap(countryMS?.getLabel(state.countries[0]) || state.countries[0]);
+  const cardTitle = 'CO₂ Levels' + titleContext + (splitSuffix[state.splitBy] ?? '');
+
+  const summaryEl = document.getElementById('chart-summary');
+  const statsLine = (summaryEl.innerText || '').trim().split('\n').map(s => s.trim()).filter(Boolean)[0] || '';
+
+  const fmtTs = ts => new Date(ts).toLocaleDateString('en-CA');
+  const countryDesc = state.countries.length === 0 ? 'All countries'
+    : (state.countryExclude ? 'Excl. ' : '') + state.countries.map(v => countryMS?.getLabel(v) || v).join(', ');
+  const typeDesc = state.locTypes.length === 0 ? 'All location types'
+    : (state.locTypeExclude ? 'Excl. ' : '') + state.locTypes.map(v => locTypeMS?.getLabel(v) || v).join(', ');
+  const brandDesc = state.brands.length > 0
+    ? (state.brandExclude ? 'Excl. ' : '') + state.brands.map(v => brandMS?.getLabel(v) || v).join(', ')
+    : null;
+  const dateDesc = fmtTs(Math.max(state.dateMin, globalDateMin)) + '–' + fmtTs(Math.min(state.dateMax, globalDateMax));
+  const filterDesc = [countryDesc, typeDesc, brandDesc, dateDesc].filter(Boolean).join(' · ');
+
+  ctx.textBaseline = 'top';
+
+  ctx.font = 'bold 46px "Titillium Web", system-ui, sans-serif';
+  ctx.fillStyle = '#111827';
+  ctx.fillText(cardTitle, 32, HEADER_H + 20);
+
+  ctx.font = '24px "Titillium Web", system-ui, sans-serif';
+  ctx.fillStyle = '#6b7280';
+  ctx.fillText(filterDesc.slice(0, 130), 32, HEADER_H + 20 + 54);
+
+  ctx.font = '20px "Titillium Web", system-ui, sans-serif';
+  ctx.fillStyle = '#9ca3af';
+  ctx.fillText(statsLine.slice(0, 100), 32, HEADER_H + 20 + 54 + 32);
+
+  // ── Chart — rendered fresh at export size with large fonts ──
+  const chartDataUrl = await renderExportChartImage(W, chartDispH);
+  const chartImg = new Image();
+  await new Promise(resolve => { chartImg.onload = resolve; chartImg.src = chartDataUrl; });
+
+  const chartY = HEADER_H + TITLE_H;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, chartY, W, chartDispH);
+  ctx.drawImage(chartImg, 0, chartY, W, chartDispH);
+
+  return cv;
+}
+
+function showExportModal(canvas) {
+  document.getElementById('export-modal')?.remove();
+  const dataUrl = canvas.toDataURL('image/png');
+
+  const modal = document.createElement('div');
+  modal.id = 'export-modal';
+  modal.innerHTML = `
+    <div id="export-modal-box">
+      <div id="export-modal-head">
+        <span>Social Media Card &mdash; 1200 &times; 630 px</span>
+        <button id="export-close-btn">✕</button>
+      </div>
+      <div id="export-preview-area">
+        <img id="export-preview-img" src="${dataUrl}" alt="Export preview">
+      </div>
+      <div id="export-modal-foot">
+        <button id="export-copy-btn" class="export-action-btn primary">Copy image</button>
+        <button id="export-dl-btn" class="export-action-btn">Download PNG</button>
+        <span id="export-msg"></span>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+
+  const close = () => modal.remove();
+  document.getElementById('export-close-btn').onclick = close;
+  modal.addEventListener('click', e => { if (e.target === modal) close(); });
+
+  document.getElementById('export-copy-btn').onclick = async () => {
+    const msg = document.getElementById('export-msg');
+    try {
+      const blob = await new Promise((res, rej) => canvas.toBlob(b => b ? res(b) : rej(), 'image/png'));
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
+      msg.textContent = '✓ Copied to clipboard';
+      msg.style.color = '#16a34a';
+    } catch {
+      msg.textContent = 'Copy not supported — use Download';
+      msg.style.color = '#dc2626';
+    }
+    setTimeout(() => { msg.textContent = ''; }, 3000);
+  };
+
+  document.getElementById('export-dl-btn').onclick = () => {
+    const a = document.createElement('a');
+    a.download = `indoor-co2-map-${Date.now()}.png`;
+    a.href = dataUrl;
+    a.click();
+  };
+}
+
 // ─── Event wiring ────────────────────────────────────────────────────────────
 
 function wireEvents() {
+  document.getElementById('export-social-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('export-social-btn');
+    btn.disabled = true;
+    btn.textContent = '…';
+    try {
+      const canvas = await generateSocialCard();
+      if (canvas) showExportModal(canvas);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Share';
+    }
+  });
+
   document.querySelectorAll('input[name="split"]').forEach(radio => {
     radio.addEventListener('change', e => {
       state.splitBy = e.target.value;

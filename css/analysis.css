@@ -744,3 +744,112 @@ select.exclude-mode {
   min-width: 90px;
   max-width: 160px;
 }
+
+/* ── Social export modal ─────────────────────────────── */
+
+#export-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 8000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+
+#export-modal-box {
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px 20px 16px;
+  width: min(860px, 100%);
+  max-height: 92vh;
+  overflow-y: auto;
+  box-shadow: 0 24px 60px rgba(0,0,0,0.3);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+#export-modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #374151;
+}
+
+#export-close-btn {
+  background: none;
+  border: none;
+  font-size: 1rem;
+  color: #9ca3af;
+  cursor: pointer;
+  padding: 2px 6px;
+  line-height: 1;
+  border-radius: 4px;
+}
+
+#export-close-btn:hover { background: #f3f4f6; color: #374151; }
+
+#export-preview-area {
+  background: #f1f5f9;
+  border-radius: 8px;
+  padding: 10px;
+  text-align: center;
+}
+
+#export-preview-img {
+  max-width: 100%;
+  border-radius: 4px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.18);
+  display: block;
+  margin: 0 auto;
+}
+
+#export-modal-foot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.export-action-btn {
+  font-family: 'Titillium Web', sans-serif;
+  font-size: 0.88rem;
+  padding: 7px 18px;
+  border-radius: 6px;
+  cursor: pointer;
+  border: 1px solid #d1d5db;
+  background: #f9fafb;
+  color: #374151;
+}
+
+.export-action-btn:hover { background: #e5e7eb; }
+
+.export-action-btn.primary {
+  background: #2563eb;
+  border-color: #2563eb;
+  color: #fff;
+}
+
+.export-action-btn.primary:hover { background: #1d4ed8; }
+
+#export-msg {
+  font-size: 0.85rem;
+  margin-left: 4px;
+}
+
+#export-social-btn {
+  font-size: 0.78rem;
+  padding: 3px 10px;
+  border: 1px solid #d1d5db;
+  border-radius: 5px;
+  background: #f9fafb;
+  cursor: pointer;
+  color: #374151;
+  font-family: 'Titillium Web', sans-serif;
+}
+
+#export-social-btn:hover { background: #e5e7eb; }
+#export-social-btn:disabled { opacity: 0.5; cursor: not-allowed; }

@@ -1514,6 +1514,112 @@ async function generateSocialCard() {
   return cv;
 }
 
+async function renderExportComparisonChartImage(W, H) {
+  const srcDs = comparisonChart.data.datasets[0];
+  const yMin = comparisonChart.scales?.y?.min ?? 400;
+  const yMax = comparisonChart.scales?.y?.max;
+
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  cv.style.cssText = 'position:fixed;left:-9999px;visibility:hidden';
+  document.body.appendChild(cv);
+
+  const FONT = 18;
+  const yScale = { title: { display: true, text: 'CO₂ (ppm)', font: { size: FONT } }, ticks: { font: { size: FONT } }, min: yMin };
+  if (yMax != null) yScale.max = yMax;
+
+  const chart = new Chart(cv, {
+    type: 'boxplot',
+    data: { labels: comparisonChart.data.labels, datasets: [{ ...srcDs }] },
+    options: {
+      responsive: false, maintainAspectRatio: false, animation: false, devicePixelRatio: 1,
+      plugins: { legend: { display: false }, title: { display: false }, tooltip: { enabled: false } },
+      scales: {
+        y: yScale,
+        x: { ticks: { font: { size: FONT }, maxRotation: 0, minRotation: 0,
+          callback: function(val) {
+            const lbl = this.getLabelForValue(val);
+            if (!lbl) return '';
+            return lbl.includes(' · ') ? lbl.split(' · ') : lbl;
+          }
+        }}
+      }
+    },
+    plugins: [medianLabelPlugin]
+  });
+
+  const dataUrl = chart.toBase64Image('image/png', 1);
+  chart.destroy();
+  document.body.removeChild(cv);
+  return dataUrl;
+}
+
+async function generateComparisonSocialCard() {
+  if (!comparisonChart) return null;
+  await document.fonts.ready;
+
+  const cssW = comparisonChart.canvas.offsetWidth || comparisonChart.canvas.width;
+  const cssH = comparisonChart.canvas.offsetHeight || comparisonChart.canvas.height;
+
+  const W = 1200;
+  const HEADER_H = 76;
+  const TITLE_H  = 155;
+  const chartDispH = Math.round((cssH / cssW) * W);
+  const H = HEADER_H + TITLE_H + chartDispH;
+
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  // Header
+  ctx.fillStyle = '#1e40af';
+  ctx.fillRect(0, 0, W, HEADER_H);
+
+  ctx.font = 'bold 22px "Titillium Web", system-ui, sans-serif';
+  ctx.fillStyle = '#ffffff';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('indoorco2map.com', 32, HEADER_H / 2);
+
+  const dateStr = new Date().toLocaleDateString('en', { month: 'short', year: 'numeric' });
+  ctx.font = '18px "Titillium Web", system-ui, sans-serif';
+  ctx.fillStyle = 'rgba(255,255,255,0.72)';
+  ctx.textAlign = 'right';
+  ctx.fillText(dateStr, W - 32, HEADER_H / 2);
+  ctx.textAlign = 'left';
+
+  // Title area
+  const slotLabels = slots.map(s => s.label).join('  |  ');
+  const statsLine  = `${slots.length} comparison group${slots.length !== 1 ? 's' : ''}`;
+
+  ctx.textBaseline = 'top';
+  ctx.font = 'bold 46px "Titillium Web", system-ui, sans-serif';
+  ctx.fillStyle = '#111827';
+  ctx.fillText('CO₂ Levels — Comparison', 32, HEADER_H + 20);
+
+  ctx.font = '24px "Titillium Web", system-ui, sans-serif';
+  ctx.fillStyle = '#6b7280';
+  ctx.fillText(slotLabels.slice(0, 130), 32, HEADER_H + 20 + 54);
+
+  ctx.font = '20px "Titillium Web", system-ui, sans-serif';
+  ctx.fillStyle = '#9ca3af';
+  ctx.fillText(statsLine, 32, HEADER_H + 20 + 54 + 32);
+
+  // Chart
+  const chartDataUrl = await renderExportComparisonChartImage(W, chartDispH);
+  const chartImg = new Image();
+  await new Promise(resolve => { chartImg.onload = resolve; chartImg.src = chartDataUrl; });
+
+  const chartY = HEADER_H + TITLE_H;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, chartY, W, chartDispH);
+  ctx.drawImage(chartImg, 0, chartY, W, chartDispH);
+
+  return cv;
+}
+
 function showExportModal(canvas) {
   document.getElementById('export-modal')?.remove();
   const dataUrl = canvas.toDataURL('image/png');
@@ -1572,6 +1678,19 @@ function wireEvents() {
     btn.textContent = '…';
     try {
       const canvas = await generateSocialCard();
+      if (canvas) showExportModal(canvas);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Share';
+    }
+  });
+
+  document.getElementById('export-comparison-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('export-comparison-btn');
+    btn.disabled = true;
+    btn.textContent = '…';
+    try {
+      const canvas = await generateComparisonSocialCard();
       if (canvas) showExportModal(canvas);
     } finally {
       btn.disabled = false;

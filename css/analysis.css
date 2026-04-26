@@ -840,7 +840,7 @@ select.exclude-mode {
   margin-left: 4px;
 }
 
-#export-social-btn {
+#export-social-btn, #export-comparison-btn {
   font-size: 0.78rem;
   padding: 3px 10px;
   border: 1px solid #d1d5db;
@@ -851,5 +851,5 @@ select.exclude-mode {
   font-family: 'Titillium Web', sans-serif;
 }
 
-#export-social-btn:hover { background: #e5e7eb; }
-#export-social-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+#export-social-btn:hover, #export-comparison-btn:hover { background: #e5e7eb; }
+#export-social-btn:disabled, #export-comparison-btn:disabled { opacity: 0.5; cursor: not-allowed; }

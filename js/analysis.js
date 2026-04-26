@@ -28,7 +28,8 @@ const state = {
   limitN: 20,
   limitType: 'count',      // criterion for selecting which N make the cut
   displayOrder: 'lowest',  // how to order those N in the chart
-  minEntries: 1,           // hide categories with fewer than this many entries
+  minEntries: 1,           // hide categories with fewer than this many locations
+  minMeasPerLoc: 1,        // hide locations with fewer than this many measurements
   pointMode: 'all',  // 'none' | 'outliers' | 'all'
   showMedian: false,
   matchLocations: false,
@@ -126,6 +127,11 @@ function aggregateByLocation(records) {
       loc.avgCO2 = loc.visits.reduce((s, v) => s + v, 0) / loc.visits.length;
     } else {
       loc.avgCO2 = NaN;
+    }
+  }
+  if (state.minMeasPerLoc > 1) {
+    for (const [key, loc] of [...map]) {
+      if (loc.visits.length < state.minMeasPerLoc) map.delete(key);
     }
   }
   return map;
@@ -1382,6 +1388,11 @@ function wireEvents() {
   document.getElementById('min-entries').addEventListener('input', e => {
     const n = parseInt(e.target.value, 10);
     if (n >= 1) { state.minEntries = n; update(); }
+  });
+
+  document.getElementById('min-meas-per-loc').addEventListener('input', e => {
+    const n = parseInt(e.target.value, 10);
+    if (n >= 1) { state.minMeasPerLoc = n; update(); }
   });
 
   const POINT_MODE_SEL = 'input[name="point-mode"], input[name="point-mode-cmp"]';

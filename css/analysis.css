@@ -404,7 +404,7 @@ input[type="text"] {
   margin-bottom: 0;
 }
 
-#add-slot-btn {
+#add-slot-btn, #duplicate-slot-btn {
   font-size: 0.82rem;
   padding: 5px 12px;
   border: 1px dashed #9ca3af;
@@ -415,12 +415,12 @@ input[type="text"] {
   font-family: 'Titillium Web', sans-serif;
 }
 
-#add-slot-btn:hover:not(:disabled) {
+#add-slot-btn:hover:not(:disabled), #duplicate-slot-btn:hover:not(:disabled) {
   border-color: #3b82f6;
   color: #3b82f6;
 }
 
-#add-slot-btn:disabled {
+#add-slot-btn:disabled, #duplicate-slot-btn:disabled {
   opacity: 0.4;
   cursor: not-allowed;
 }

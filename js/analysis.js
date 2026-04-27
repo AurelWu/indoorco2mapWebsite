@@ -298,6 +298,15 @@ const medianLabelPlugin = {
         ctx.restore();
       });
     });
+    // Caption note in bottom-right of plot area
+    const noteSize = Math.max(10, fontSize - 5);
+    ctx.save();
+    ctx.font = `${noteSize}px sans-serif`;
+    ctx.fillStyle = 'rgba(120,120,120,0.75)';
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'bottom';
+    ctx.fillText('Labeled numbers are median CO₂ values in ppm', chart.chartArea.right - 4, chart.chartArea.bottom - 4);
+    ctx.restore();
   }
 };
 
@@ -341,7 +350,9 @@ function renderMainChart(groups) {
         itemBackgroundColor: 'rgba(59,130,246,0.45)',
         itemBorderWidth: 0,
         outlierRadius,
-        outlierBackgroundColor: 'rgba(239,68,68,0.6)'
+        outlierBackgroundColor: 'rgba(239,68,68,0.6)',
+        meanBackgroundColor: 'rgba(0,0,0,0)',
+        meanBorderColor:     'rgba(0,0,0,0)'
       }]
     },
     options: buildChartOptions(false, yBounds),
@@ -388,7 +399,9 @@ function renderComparisonChart(slotData) {
         itemBackgroundColor: slotData.map(s => s.color + '80'),
         itemBorderWidth: 0,
         outlierRadius,
-        outlierBackgroundColor: slotData.map(s => s.color + 'AA')
+        outlierBackgroundColor: slotData.map(s => s.color + 'AA'),
+        meanBackgroundColor: slotData.map(() => 'rgba(0,0,0,0)'),
+        meanBorderColor:     slotData.map(() => 'rgba(0,0,0,0)')
       }]
     },
     options: buildChartOptions(true, yBounds),
@@ -1282,8 +1295,35 @@ function addSlot() {
   updateComparisonChart();
 }
 
+function duplicateLastSlot() {
+  if (slots.length === 0 || slots.length >= 5) return;
+  const src = slots[slots.length - 1];
+  slots.push({
+    countries:       [...src.countries],
+    countryExclude:  src.countryExclude,
+    locTypes:        [...src.locTypes],
+    locTypeExclude:  src.locTypeExclude,
+    brands:          [...src.brands],
+    brandExclude:    src.brandExclude,
+    brandDisplayMap: { ...src.brandDisplayMap },
+    locationName:    src.locationName,
+    overrideTime:    src.overrideTime,
+    hours:           src.hours    ? new Set(src.hours)    : null,
+    months:          src.months   ? new Set(src.months)   : null,
+    weekdays:        src.weekdays ? new Set(src.weekdays) : null,
+    dateMin:         src.dateMin,
+    dateMax:         src.dateMax,
+    color:           SLOT_COLORS[slots.length],
+    label:           src.label,
+  });
+  renderSlots();
+  updateAddSlotBtn();
+  updateComparisonChart();
+}
+
 function updateAddSlotBtn() {
   document.getElementById('add-slot-btn').disabled = slots.length >= 5;
+  document.getElementById('duplicate-slot-btn').disabled = slots.length === 0 || slots.length >= 5;
 }
 
 // ─── Time filters ────────────────────────────────────────────────────────────
@@ -1655,22 +1695,35 @@ async function generateComparisonSocialCard() {
   ctx.fillText(dateStr, W - 32, HEADER_H / 2);
   ctx.textAlign = 'left';
 
-  // Title area
-  const slotLabels = slots.map(s => s.label).join('  |  ');
-  const statsLine  = `${slots.length} comparison group${slots.length !== 1 ? 's' : ''}`;
+  // Title area — derive from common slot filters
+  const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  const allSameLocType = slots.length > 0
+    && slots[0].locTypes.length === 1 && !slots[0].locTypeExclude
+    && slots.every(s => !s.locTypeExclude && s.locTypes.length === 1 && s.locTypes[0] === slots[0].locTypes[0]);
+  const allSameCountry = slots.length > 0
+    && slots[0].countries.length === 1 && !slots[0].countryExclude
+    && slots.every(s => !s.countryExclude && s.countries.length === 1 && s.countries[0] === slots[0].countries[0]);
+
+  let compTitle = 'Indoor CO₂ Levels';
+  if (allSameLocType)
+    compTitle += ' in ' + cap(locTypeMS?.getLabel(slots[0].locTypes[0]) || slots[0].locTypes[0]);
+  else if (allSameCountry)
+    compTitle += ' in ' + cap(countryMS?.getLabel(slots[0].countries[0]) || slots[0].countries[0]);
+  else
+    compTitle += ' — Comparison';
+
+  const fmtTsCmp = ts => new Date(ts).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
+  const dateDescCmp = fmtTsCmp(Math.max(state.dateMin, globalDateMin)) + ' – ' + fmtTsCmp(Math.min(state.dateMax, globalDateMax));
+  const statsLine = `${slots.length} comparison group${slots.length !== 1 ? 's' : ''} · ${dateDescCmp}`;
 
   ctx.textBaseline = 'top';
   ctx.font = 'bold 46px "Titillium Web", system-ui, sans-serif';
   ctx.fillStyle = '#111827';
-  ctx.fillText('Indoor CO₂ Levels — Comparison', 32, HEADER_H + 20);
-
-  ctx.font = '24px "Titillium Web", system-ui, sans-serif';
-  ctx.fillStyle = '#6b7280';
-  ctx.fillText(slotLabels.slice(0, 130), 32, HEADER_H + 20 + 54);
+  ctx.fillText(compTitle, 32, HEADER_H + 20);
 
   ctx.font = '20px "Titillium Web", system-ui, sans-serif';
   ctx.fillStyle = '#9ca3af';
-  ctx.fillText(statsLine, 32, HEADER_H + 20 + 54 + 32);
+  ctx.fillText(statsLine, 32, HEADER_H + 20 + 54);
 
   // Chart
   const chartDataUrl = await renderExportComparisonChartImage(W, chartDispH);
@@ -1835,6 +1888,7 @@ function wireEvents() {
   });
 
   document.getElementById('add-slot-btn').addEventListener('click', addSlot);
+  document.getElementById('duplicate-slot-btn').addEventListener('click', duplicateLastSlot);
 }
 
 // ─── Init ────────────────────────────────────────────────────────────────────

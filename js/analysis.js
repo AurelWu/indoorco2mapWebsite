@@ -641,7 +641,10 @@ function buildLocTypeOpts(records) {
   const locSets = countByLocationKey(records || allRecords, r => r.osmTag);
   return [...locSets.entries()]
     .sort((a, b) => b[1].size - a[1].size)
-    .map(([tag, locs]) => ({ value: tag, label: `${tag} (${locs.size})` }));
+    .map(([tag, locs]) => {
+      const displayLabel = LOC_TYPE_LABELS[tag] || tag;
+      return { value: tag, label: `${displayLabel} (${locs.size})`, displayLabel };
+    });
 }
 
 function buildBrandOpts(records) {

@@ -1376,6 +1376,35 @@ function refreshMainDropdowns() {
 
 // ─── Social media export ──────────────────────────────────────────────────────
 
+let _logoPromise = null;
+function loadCardLogo() {
+  if (!_logoPromise) {
+    _logoPromise = fetch('images/icon512_512.png')
+      .then(r => r.blob())
+      .then(blob => new Promise(r => {
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          // Sample corner pixel to extract the logo's exact background color
+          try {
+            const tmp = document.createElement('canvas');
+            tmp.width = tmp.height = 8;
+            tmp.getContext('2d').drawImage(img, 0, 0, 8, 8);
+            const [rv, gv, bv] = tmp.getContext('2d').getImageData(1, 1, 1, 1).data;
+            r({ img, bgColor: `rgb(${rv},${gv},${bv})` });
+          } catch(e) {
+            r({ img, bgColor: '#1e40af' });
+          }
+        };
+        img.onerror = () => { URL.revokeObjectURL(url); r(null); };
+        img.src = url;
+      }))
+      .catch(() => null);
+  }
+  return _logoPromise;
+}
+
 async function renderExportChartImage(W, H) {
   const srcDs = mainChart.data.datasets[0];
   const yMin  = mainChart.scales?.y?.min ?? 400;
@@ -1435,6 +1464,9 @@ async function renderExportChartImage(W, H) {
 async function generateSocialCard() {
   if (!mainChart) return null;
   await document.fonts.ready;
+  const logoData = await loadCardLogo();
+  const logo = logoData?.img ?? null;
+  const headerColor = logoData?.bgColor ?? '#1e40af';
 
   // Use CSS (logical) dimensions for aspect ratio to undo DPR scaling
   const cssW = mainChart.canvas.offsetWidth || mainChart.canvas.width;
@@ -1457,15 +1489,24 @@ async function generateSocialCard() {
   ctx.fillRect(0, 0, W, H);
 
   // ── Header bar ──────────────────────────────────────────
-  ctx.fillStyle = '#1e40af';
+  ctx.fillStyle = headerColor;
   ctx.fillRect(0, 0, W, HEADER_H);
+
+  const LOGO_SIZE = 62;
+  const logoX = 7;
+  if (logo) {
+    ctx.fillStyle = headerColor;
+    ctx.fillRect(logoX, (HEADER_H - LOGO_SIZE) / 2, LOGO_SIZE, LOGO_SIZE);
+    ctx.drawImage(logo, logoX, (HEADER_H - LOGO_SIZE) / 2, LOGO_SIZE, LOGO_SIZE);
+  }
+  const textX = logo ? logoX + LOGO_SIZE + 10 : 32;
 
   ctx.font = 'bold 22px "Titillium Web", system-ui, sans-serif';
   ctx.fillStyle = '#ffffff';
   ctx.textBaseline = 'middle';
-  ctx.fillText('indoorco2map.com', 32, HEADER_H / 2);
+  ctx.fillText('indoorco2map.com', textX, HEADER_H / 2);
 
-  const dateStr = new Date().toLocaleDateString('en', { month: 'short', year: 'numeric' });
+  const dateStr = new Date().toLocaleDateString('en', { month: 'long', day: 'numeric', year: 'numeric' });
   ctx.font = '18px "Titillium Web", system-ui, sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,0.72)';
   ctx.textAlign = 'right';
@@ -1488,7 +1529,7 @@ async function generateSocialCard() {
   const summaryEl = document.getElementById('chart-summary');
   const statsLine = (summaryEl.innerText || '').trim().split('\n').map(s => s.trim()).filter(Boolean)[0] || '';
 
-  const fmtTs = ts => new Date(ts).toLocaleDateString('en-CA');
+  const fmtTs = ts => new Date(ts).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
   const countryDesc = state.countries.length === 0 ? 'All countries'
     : (state.countryExclude ? 'Excl. ' : '') + state.countries.map(v => countryMS?.getLabel(v) || v).join(', ');
   const typeDesc = state.locTypes.length === 0 ? 'All location types'
@@ -1569,6 +1610,9 @@ async function renderExportComparisonChartImage(W, H) {
 async function generateComparisonSocialCard() {
   if (!comparisonChart) return null;
   await document.fonts.ready;
+  const logoData = await loadCardLogo();
+  const logo = logoData?.img ?? null;
+  const headerColor = logoData?.bgColor ?? '#1e40af';
 
   const cssW = comparisonChart.canvas.offsetWidth || comparisonChart.canvas.width;
   const cssH = comparisonChart.canvas.offsetHeight || comparisonChart.canvas.height;
@@ -1587,15 +1631,24 @@ async function generateComparisonSocialCard() {
   ctx.fillRect(0, 0, W, H);
 
   // Header
-  ctx.fillStyle = '#1e40af';
+  ctx.fillStyle = headerColor;
   ctx.fillRect(0, 0, W, HEADER_H);
+
+  const LOGO_SIZE = 62;
+  const logoX = 7;
+  if (logo) {
+    ctx.fillStyle = headerColor;
+    ctx.fillRect(logoX, (HEADER_H - LOGO_SIZE) / 2, LOGO_SIZE, LOGO_SIZE);
+    ctx.drawImage(logo, logoX, (HEADER_H - LOGO_SIZE) / 2, LOGO_SIZE, LOGO_SIZE);
+  }
+  const textX = logo ? logoX + LOGO_SIZE + 10 : 32;
 
   ctx.font = 'bold 22px "Titillium Web", system-ui, sans-serif';
   ctx.fillStyle = '#ffffff';
   ctx.textBaseline = 'middle';
-  ctx.fillText('indoorco2map.com', 32, HEADER_H / 2);
+  ctx.fillText('indoorco2map.com', textX, HEADER_H / 2);
 
-  const dateStr = new Date().toLocaleDateString('en', { month: 'short', year: 'numeric' });
+  const dateStr = new Date().toLocaleDateString('en', { month: 'long', day: 'numeric', year: 'numeric' });
   ctx.font = '18px "Titillium Web", system-ui, sans-serif';
   ctx.fillStyle = 'rgba(255,255,255,0.72)';
   ctx.textAlign = 'right';
@@ -1759,11 +1812,15 @@ function wireEvents() {
     r.addEventListener('change', e => { if (e.target.checked) applyPointMode(e.target.value); });
   });
 
-  document.getElementById('show-median').addEventListener('change', e => {
-    state.showMedian = e.target.checked;
+  function applyShowMedian(val) {
+    state.showMedian = val;
+    document.getElementById('show-median').checked = val;
+    document.getElementById('show-median-cmp').checked = val;
     update();
     if (slots.length > 0) updateComparisonChart();
-  });
+  }
+  document.getElementById('show-median').addEventListener('change', e => applyShowMedian(e.target.checked));
+  document.getElementById('show-median-cmp').addEventListener('change', e => applyShowMedian(e.target.checked));
 
   document.getElementById('match-locations').addEventListener('change', e => {
     state.matchLocations = e.target.checked;

@@ -269,6 +269,8 @@ const medianLabelPlugin = {
   afterDatasetsDraw(chart) {
     if (!state.showMedian) return;
     const { ctx, scales } = chart;
+    const fontSize = chart.options.plugins?.medianLabels?.fontSize ?? 11;
+    const showBg = state.pointMode === 'all';
     chart.data.datasets.forEach((dataset, di) => {
       const meta = chart.getDatasetMeta(di);
       dataset.data.forEach((vals, i) => {
@@ -280,12 +282,19 @@ const medianLabelPlugin = {
         const n = sorted.length;
         const median = n % 2 === 0 ? (sorted[n / 2 - 1] + sorted[n / 2]) / 2 : sorted[Math.floor(n / 2)];
         const yPx = scales.y.getPixelForValue(median);
+        const text = String(Math.round(median));
         ctx.save();
-        ctx.font = 'bold 11px sans-serif';
-        ctx.fillStyle = 'rgba(20,20,20,0.75)';
+        ctx.font = `bold ${fontSize}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'top';
-        ctx.fillText(Math.round(median), el.x, yPx + 3);
+        if (showBg) {
+          const tw = ctx.measureText(text).width;
+          const pad = 2;
+          ctx.fillStyle = 'rgba(255,255,255,0.88)';
+          ctx.fillRect(el.x - tw / 2 - pad, yPx + 3 - pad, tw + pad * 2, fontSize + pad * 2);
+        }
+        ctx.fillStyle = 'rgba(20,20,20,0.85)';
+        ctx.fillText(text, el.x, yPx + 3);
         ctx.restore();
       });
     });
@@ -990,11 +999,11 @@ function initMainFilters() {
 
 function slotLabel(slot) {
   const parts = [];
-  if (slot.countries?.length) parts.push((slot.countryExclude  ? 'NOT ' : '') + slot.countries.join(', '));
-  if (slot.locTypes?.length)  parts.push((slot.locTypeExclude  ? 'NOT ' : '') + slot.locTypes.join(', '));
+  if (slot.countries?.length) parts.push((slot.countryExclude  ? 'All except ' : '') + slot.countries.join(', '));
+  if (slot.locTypes?.length)  parts.push((slot.locTypeExclude  ? 'All except ' : '') + slot.locTypes.join(', '));
   if (slot.brands?.length) {
     const names = slot.brands.map(v => slot.brandDisplayMap?.[v] || v).join(', ');
-    parts.push((slot.brandExclude ? 'NOT ' : '') + names);
+    parts.push((slot.brandExclude ? 'All except ' : '') + names);
   }
   if (slot.locationName) parts.push(slot.locationName);
   return parts.length ? parts.join(' · ') : 'All Data';
@@ -1396,7 +1405,7 @@ async function renderExportChartImage(W, H) {
       maintainAspectRatio: false,
       animation: false,
       devicePixelRatio: 1,
-      plugins: { legend: { display: false }, title: { display: false }, tooltip: { enabled: false } },
+      plugins: { legend: { display: false }, title: { display: false }, tooltip: { enabled: false }, medianLabels: { fontSize: FONT } },
       scales: {
         y: yScale,
         x: {
@@ -1474,7 +1483,7 @@ async function generateSocialCard() {
     titleContext = ' in ' + cap(locTypeMS?.getLabel(state.locTypes[0]) || state.locTypes[0]);
   else if (state.splitBy !== 'country' && state.countries.length === 1 && !state.countryExclude)
     titleContext = ' in ' + cap(countryMS?.getLabel(state.countries[0]) || state.countries[0]);
-  const cardTitle = 'CO₂ Levels' + titleContext + (splitSuffix[state.splitBy] ?? '');
+  const cardTitle = 'Indoor CO₂ Levels' + titleContext + (splitSuffix[state.splitBy] ?? '');
 
   const summaryEl = document.getElementById('chart-summary');
   const statsLine = (summaryEl.innerText || '').trim().split('\n').map(s => s.trim()).filter(Boolean)[0] || '';
@@ -1536,7 +1545,7 @@ async function renderExportComparisonChartImage(W, H) {
     data: { labels: comparisonChart.data.labels, datasets: [{ ...srcDs }] },
     options: {
       responsive: false, maintainAspectRatio: false, animation: false, devicePixelRatio: 1,
-      plugins: { legend: { display: false }, title: { display: false }, tooltip: { enabled: false } },
+      plugins: { legend: { display: false }, title: { display: false }, tooltip: { enabled: false }, medianLabels: { fontSize: FONT } },
       scales: {
         y: yScale,
         x: { ticks: { font: { size: FONT }, maxRotation: 0, minRotation: 0,
@@ -1600,7 +1609,7 @@ async function generateComparisonSocialCard() {
   ctx.textBaseline = 'top';
   ctx.font = 'bold 46px "Titillium Web", system-ui, sans-serif';
   ctx.fillStyle = '#111827';
-  ctx.fillText('CO₂ Levels — Comparison', 32, HEADER_H + 20);
+  ctx.fillText('Indoor CO₂ Levels — Comparison', 32, HEADER_H + 20);
 
   ctx.font = '24px "Titillium Web", system-ui, sans-serif';
   ctx.fillStyle = '#6b7280';

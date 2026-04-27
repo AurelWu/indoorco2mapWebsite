@@ -2,7 +2,7 @@ const LOC_TYPE_LABELS = {
   // Food & Drink
   restaurant:          'Restaurants',
   cafe:                'Cafés',
-  fast_food:           'Fast Food',
+  fast_food:           'Fast Food Restaurants',
   bar:                 'Bars',
   pub:                 'Pubs',
   biergarten:          'Beer Gardens',

@@ -71,6 +71,7 @@ function filterRecords(records, opts = {}) {
     dateMin = 0, dateMax = Infinity,
     brands = [], brandExclude = false,
     locationName = '',
+    nwrType = '', nwrId = '',
     hours    = state.hours,
     months   = state.months,
     weekdays = state.weekdays
@@ -95,6 +96,11 @@ function filterRecords(records, opts = {}) {
       const n = (r.name || '').toLowerCase();
       if (!n.includes(locationName.toLowerCase())) return false;
     }
+    if (nwrType && nwrId) {
+      const NWR_NORM = { n: 'node', w: 'way', r: 'relation' };
+      const rType = NWR_NORM[(r.nwrtype || '').toLowerCase()] || (r.nwrtype || '').toLowerCase();
+      if (rType !== nwrType || String(r.nwrID) !== nwrId) return false;
+    }
     if (hours    && !hours.has(new Date(r._ts).getUTCHours()))   return false;
     if (months   && !months.has(new Date(r._ts).getUTCMonth()))  return false;
     if (weekdays && !weekdays.has(new Date(r._ts).getUTCDay()))  return false;
@@ -107,7 +113,7 @@ function filterRecords(records, opts = {}) {
 function aggregateByLocation(records) {
   const map = new Map();
   for (const r of records) {
-    const key = `${r.nwrType}-${r.nwrID}`;
+    const key = `${r.nwrtype}-${r.nwrID}`;
     if (!map.has(key)) {
       map.set(key, {
         key,
@@ -181,18 +187,30 @@ function buildGroups(records, splitBy) {
     }
 
     const groups = new Map();
-    for (const def of GROUP_DEFS[tp]) groups.set(def.key, { label: def.label, values: [], count: 0 });
+    for (const def of GROUP_DEFS[tp]) groups.set(def.key, { label: def.label, values: [], locs: new Set() });
 
-    for (const r of records) {
+    let timeRecords = records;
+    if (state.minMeasPerLoc > 1) {
+      const locCounts = new Map();
+      for (const r of records) {
+        const k = `${r.nwrtype}-${r.nwrID}`;
+        locCounts.set(k, (locCounts.get(k) || 0) + 1);
+      }
+      timeRecords = records.filter(r => (locCounts.get(`${r.nwrtype}-${r.nwrID}`) || 0) >= state.minMeasPerLoc);
+    }
+
+    for (const r of timeRecords) {
       if (typeof r.co2readingsAvg !== 'number' || isNaN(r.co2readingsAvg)) continue;
       const key = getKey(r._ts);
       if (key === null || !groups.has(key)) continue;
       const g = groups.get(key);
       g.values.push(r.co2readingsAvg);
-      g.count++;
+      g.locs.add(`${r.nwrtype}-${r.nwrID}`);
     }
 
-    return [...groups.values()].filter(g => g.values.length > 0);
+    return [...groups.values()]
+      .filter(g => g.values.length > 0)
+      .map(g => ({ ...g, count: g.locs.size }));
   }
 
   // country / type / brand: group by location average first, then by category
@@ -247,19 +265,24 @@ function pct(sorted, p) {
   return lo === hi ? sorted[lo] : sorted[lo] + (idx - lo) * (sorted[hi] - sorted[lo]);
 }
 
-function getWhiskerBounds(groups) {
-  let yMin = Infinity, yMax = -Infinity;
+function getDataMax(groups) {
+  let max = -Infinity;
   for (const g of groups) {
-    if (!g.values || !g.values.length) continue;
+    if (g.values?.length) max = Math.max(max, ...g.values);
+  }
+  return isFinite(max) ? max : null;
+}
+
+function getWhiskerMax(groups) {
+  let max = -Infinity;
+  for (const g of groups) {
+    if (!g.values?.length) continue;
     const sorted = [...g.values].sort((a, b) => a - b);
     const q1 = pct(sorted, 25), q3 = pct(sorted, 75);
-    const fence = 1.5 * (q3 - q1);
-    const wMin = sorted.find(v => v >= q1 - fence) ?? sorted[0];
-    const wMax = [...sorted].reverse().find(v => v <= q3 + fence) ?? sorted[sorted.length - 1];
-    if (wMin < yMin) yMin = wMin;
-    if (wMax > yMax) yMax = wMax;
+    const wMax = [...sorted].reverse().find(v => v <= q3 + 1.5 * (q3 - q1)) ?? sorted[sorted.length - 1];
+    if (wMax > max) max = wMax;
   }
-  return isFinite(yMin) ? { yMin, yMax } : null;
+  return isFinite(max) ? max : null;
 }
 
 // ─── Chart rendering ─────────────────────────────────────────────────────────
@@ -333,7 +356,6 @@ function renderMainChart(groups) {
 
   const itemRadius    = state.pointMode === 'all' ? 3 : 0;
   const outlierRadius = state.pointMode !== 'none' ? 4 : 0;
-  const yBounds       = state.pointMode === 'none' ? getWhiskerBounds(groups) : null;
 
   mainChart = new Chart(canvas, {
     type: 'boxplot',
@@ -355,7 +377,7 @@ function renderMainChart(groups) {
         meanBorderColor:     'rgba(0,0,0,0)'
       }]
     },
-    options: buildChartOptions(false, yBounds),
+    options: buildChartOptions(false, state.pointMode === 'none' ? getWhiskerMax(groups) : getDataMax(groups)),
     plugins: [medianLabelPlugin]
   });
 }
@@ -382,7 +404,6 @@ function renderComparisonChart(slotData) {
 
   const itemRadius    = state.pointMode === 'all' ? 3 : 0;
   const outlierRadius = state.pointMode !== 'none' ? 4 : 0;
-  const yBounds       = state.pointMode === 'none' ? getWhiskerBounds(slotData) : null;
 
   comparisonChart = new Chart(canvas, {
     type: 'boxplot',
@@ -404,20 +425,15 @@ function renderComparisonChart(slotData) {
         meanBorderColor:     slotData.map(() => 'rgba(0,0,0,0)')
       }]
     },
-    options: buildChartOptions(true, yBounds),
+    options: buildChartOptions(true, state.pointMode === 'none' ? getWhiskerMax(slotData) : getDataMax(slotData)),
     plugins: [medianLabelPlugin]
   });
 }
 
-function buildChartOptions(multilineXLabels = false, yBounds = null) {
+function buildChartOptions(multilineXLabels = false, dataMax = null) {
   const yScale = { title: { display: true, text: 'CO₂ (ppm)', font: { size: 12 } }, ticks: { font: { size: 11 } } };
-  if (yBounds) {
-    const pad = Math.max(30, (yBounds.yMax - yBounds.yMin) * 0.04);
-    yScale.min = Math.max(400, Math.floor(yBounds.yMin - pad));
-    yScale.max = Math.ceil(yBounds.yMax + pad);
-  } else {
-    yScale.min = 400;
-  }
+  yScale.min = 400;
+  if (dataMax != null) yScale.max = Math.ceil(dataMax / 100) * 100;
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -609,7 +625,8 @@ function updateComparisonChart() {
     locTypeExclude: slot.locTypeExclude || false,
     brands: slot.brands || [],
     brandExclude: slot.brandExclude || false,
-    locationName: slot.locationName,
+    nwrType: slot.nwrType || '',
+    nwrId:   slot.nwrId   || '',
     dateMin: state.dateMin,
     dateMax: state.dateMax,
     hours:    slot.overrideTime ? slot.hours    : state.hours,
@@ -620,15 +637,24 @@ function updateComparisonChart() {
   // Pass 2: intersect location keys across all slots when matchLocations is on
   let matchedKeys = null;
   if (state.matchLocations && slots.length > 1) {
-    const sets = slotFiltered.map(recs => new Set(recs.map(r => `${r.nwrType}-${r.nwrID}`)));
+    const sets = slotFiltered.map(recs => new Set(recs.map(r => `${r.nwrtype}-${r.nwrID}`)));
     matchedKeys = sets.reduce((a, b) => new Set([...a].filter(k => b.has(k))));
   }
 
   // Pass 3: aggregate
   const slotData = slots.map((slot, i) => {
     const records = matchedKeys
-      ? slotFiltered[i].filter(r => matchedKeys.has(`${r.nwrType}-${r.nwrID}`))
+      ? slotFiltered[i].filter(r => matchedKeys.has(`${r.nwrtype}-${r.nwrID}`))
       : slotFiltered[i];
+
+    // Single location selected → one boxplot, one value per measurement session
+    if (slot.nwrId) {
+      const values = records.map(r => r.co2readingsAvg).filter(v => typeof v === 'number' && !isNaN(v));
+      const suffix = slotFilterSuffix(slot);
+      const label  = suffix.length ? slot.label + ' · ' + suffix.join(' · ') : slot.label;
+      return { label, values, count: values.length, color: slot.color };
+    }
+
     const locs   = aggregateByLocation(records);
     const values = [...locs.values()].map(l => l.avgCO2).filter(v => !isNaN(v));
     const suffix = slotFilterSuffix(slot);
@@ -647,7 +673,7 @@ function countByLocationKey(records, keyFn) {
     const cat = keyFn(r);
     if (!cat) continue;
     if (!locSets.has(cat)) locSets.set(cat, new Set());
-    locSets.get(cat).add(`${r.nwrType}-${r.nwrID}`);
+    locSets.get(cat).add(`${r.nwrtype}-${r.nwrID}`);
   }
   return locSets;
 }
@@ -676,7 +702,7 @@ function buildBrandOpts(records) {
     if (!raw) continue;
     const key = normKey(raw);
     if (!brandMap.has(key)) brandMap.set(key, { label: raw, locs: new Set() });
-    brandMap.get(key).locs.add(`${r.nwrType}-${r.nwrID}`);
+    brandMap.get(key).locs.add(`${r.nwrtype}-${r.nwrID}`);
   }
   return [...brandMap.entries()]
     .sort((a, b) => b[1].locs.size - a[1].locs.size)
@@ -1018,7 +1044,7 @@ function slotLabel(slot) {
     const names = slot.brands.map(v => slot.brandDisplayMap?.[v] || v).join(', ');
     parts.push((slot.brandExclude ? 'All except ' : '') + names);
   }
-  if (slot.locationName) parts.push(slot.locationName);
+  if (slot.nwrType && slot.nwrId) parts.push(`${slot.nwrType}/${slot.nwrId}`);
   return parts.length ? parts.join(' · ') : 'All Data';
 }
 
@@ -1196,17 +1222,25 @@ function renderSlots() {
       slot.brandExclude = v; slot.label = slotLabel(slot); labelEl.textContent = slot.label; updateComparisonChart();
     });
 
-    // Name input
-    const nInp = document.createElement('input');
-    nInp.type = 'text';
-    nInp.placeholder = 'Name search…';
-    nInp.value = slot.locationName || '';
-    nInp.style.width = '110px';
-    nInp.addEventListener('input', () => {
-      slot.locationName = nInp.value;
-      slot.label = slotLabel(slot); labelEl.textContent = slot.label;
+    // OSM element filter (nwrType + nwrId)
+    const nwrSel = document.createElement('select');
+    nwrSel.style.width = '88px';
+    nwrSel.innerHTML = '<option value="">OSM type…</option><option value="node">Node</option><option value="way">Way</option><option value="relation">Relation</option>';
+    nwrSel.value = slot.nwrType || '';
+    const nwrInp = document.createElement('input');
+    nwrInp.type = 'text';
+    nwrInp.placeholder = 'OSM ID…';
+    nwrInp.value = slot.nwrId || '';
+    nwrInp.style.width = '80px';
+    nwrInp.pattern = '[0-9]*';
+    function onNwrChange() {
+      slot.nwrType = nwrSel.value;
+      slot.nwrId   = nwrInp.value.trim();
+      slot.label   = slotLabel(slot); labelEl.textContent = slot.label;
       updateComparisonChart();
-    });
+    }
+    nwrSel.addEventListener('change', onNwrChange);
+    nwrInp.addEventListener('input',  onNwrChange);
 
     // Color dot
     const dot = document.createElement('span');
@@ -1260,7 +1294,8 @@ function renderSlots() {
     row.appendChild(cToggle); row.appendChild(cMS.el);
     row.appendChild(tToggle); row.appendChild(tMS.el);
     row.appendChild(bToggle); row.appendChild(bMS.el);
-    row.appendChild(nInp);
+    row.appendChild(nwrSel);
+    row.appendChild(nwrInp);
     row.appendChild(timeToggleBtn);
     row.appendChild(removeBtn);
     row.appendChild(labelEl);
@@ -1284,7 +1319,7 @@ function addSlot() {
     locTypes: [],  locTypeExclude: false,
     brands: [],    brandExclude: false,
     brandDisplayMap: {},
-    locationName: '',
+    nwrType: '', nwrId: '',
     overrideTime: false,
     hours: null, months: null, weekdays: null,
     color: SLOT_COLORS[slots.length],
@@ -1306,7 +1341,8 @@ function duplicateLastSlot() {
     brands:          [...src.brands],
     brandExclude:    src.brandExclude,
     brandDisplayMap: { ...src.brandDisplayMap },
-    locationName:    src.locationName,
+    nwrType:         src.nwrType,
+    nwrId:           src.nwrId,
     overrideTime:    src.overrideTime,
     hours:           src.hours    ? new Set(src.hours)    : null,
     months:          src.months   ? new Set(src.months)   : null,

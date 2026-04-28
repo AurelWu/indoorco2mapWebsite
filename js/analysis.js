@@ -1576,7 +1576,7 @@ async function renderExportChartImage(W, H) {
   cv.style.cssText = 'position:fixed;left:-9999px;visibility:hidden';
   document.body.appendChild(cv);
 
-  const FONT = 18;
+  const FONT = Math.max(12, Math.round(18 * W / 1200));
   const yScale = {
     title: { display: true, text: 'CO₂ (ppm)', font: { size: FONT } },
     ticks: { font: { size: FONT } },
@@ -1666,12 +1666,20 @@ async function generateSocialCard(preset = 'landscape') {
   const headerColor = logoData?.bgColor ?? '#1e40af';
 
   const PRESETS = {
-    landscape: { W: 1200, targetH: 675 },
+    landscape: { W: 1200, targetH: 627 },
     square:    { W: 1080, targetH: 1080 },
+    portrait:  { W:  627, targetH: 1200 },
   };
   const { W, targetH } = PRESETS[preset] ?? PRESETS.landscape;
-  const HEADER_H = 70;   // blue bar
-  const TITLE_H  = 155;  // title + stats + filter desc + padding
+  const HEADER_H = 70;
+  const TITLE_H  = 155;
+  const sc = W / 1200;
+  const hBrandFont = Math.max(15, Math.round(22 * sc));
+  const hDateFont  = Math.max(12, Math.round(18 * sc));
+  const titleFont  = Math.max(26, Math.round(40 * sc));
+  const subFont    = Math.max(13, Math.round(24 * sc));
+  const statsFont  = Math.max(12, Math.round(20 * sc));
+  const padX       = Math.max(18, Math.round(32 * sc));
 
   // ── Pre-compute legend lines to size the canvas correctly ──
   const nLabel = state.splitBy === 'location' ? 'number of visits' : 'number of locations';
@@ -1712,18 +1720,18 @@ async function generateSocialCard(preset = 'landscape') {
     ctx.fillRect(logoX, (HEADER_H - LOGO_SIZE) / 2, LOGO_SIZE, LOGO_SIZE);
     ctx.drawImage(logo, logoX, (HEADER_H - LOGO_SIZE) / 2, LOGO_SIZE, LOGO_SIZE);
   }
-  const textX = logo ? logoX + LOGO_SIZE + 10 : 32;
+  const textX = logo ? logoX + LOGO_SIZE + 10 : padX;
 
-  ctx.font = 'bold 22px "Titillium Web", system-ui, sans-serif';
+  ctx.font = `bold ${hBrandFont}px "Titillium Web", system-ui, sans-serif`;
   ctx.fillStyle = '#ffffff';
   ctx.textBaseline = 'middle';
   ctx.fillText('indoorco2map.com', textX, HEADER_H / 2);
 
   const dateStr = new Date().toLocaleDateString('en', { month: 'long', day: 'numeric', year: 'numeric' });
-  ctx.font = '18px "Titillium Web", system-ui, sans-serif';
+  ctx.font = `${hDateFont}px "Titillium Web", system-ui, sans-serif`;
   ctx.fillStyle = 'rgba(255,255,255,0.72)';
   ctx.textAlign = 'right';
-  ctx.fillText(dateStr, W - 32, HEADER_H / 2);
+  ctx.fillText(dateStr, W - padX, HEADER_H / 2);
   ctx.textAlign = 'left';
 
   // ── Title + stats + filter description ──────────────────
@@ -1755,17 +1763,17 @@ async function generateSocialCard(preset = 'landscape') {
 
   ctx.textBaseline = 'top';
 
-  ctx.font = 'bold 40px "Titillium Web", system-ui, sans-serif';
+  ctx.font = `bold ${titleFont}px "Titillium Web", system-ui, sans-serif`;
   ctx.fillStyle = '#111827';
-  ctx.fillText(cardTitle, 32, HEADER_H + 16);
+  ctx.fillText(cardTitle, padX, HEADER_H + 16);
 
-  ctx.font = '24px "Titillium Web", system-ui, sans-serif';
+  ctx.font = `${subFont}px "Titillium Web", system-ui, sans-serif`;
   ctx.fillStyle = '#6b7280';
-  ctx.fillText(filterDesc.slice(0, 130), 32, HEADER_H + 16 + 46);
+  ctx.fillText(filterDesc.slice(0, 130), padX, HEADER_H + 16 + 46);
 
-  ctx.font = '20px "Titillium Web", system-ui, sans-serif';
+  ctx.font = `${statsFont}px "Titillium Web", system-ui, sans-serif`;
   ctx.fillStyle = '#9ca3af';
-  ctx.fillText(statsLine.slice(0, 100), 32, HEADER_H + 16 + 46 + 30);
+  ctx.fillText(statsLine.slice(0, 100), padX, HEADER_H + 16 + 46 + 30);
 
   // ── Chart — rendered fresh at export size with large fonts ──
   const chartDataUrl = await renderExportChartImage(W, chartDispH);
@@ -1779,8 +1787,8 @@ async function generateSocialCard(preset = 'landscape') {
 
   // ── Legend below chart ───────────────────────────────────
   const legendY = chartY + chartDispH + 10;
-  legendLines.forEach((line, i) => drawLegendLine(ctx, line, 32, legendY + i * 17, 13));
-  if (dotsNote) drawLegendLine(ctx, dotsNote, 32, legendY + legendLines.length * 17, 13);
+  legendLines.forEach((line, i) => drawLegendLine(ctx, line, padX, legendY + i * 17, 13));
+  if (dotsNote) drawLegendLine(ctx, dotsNote, padX, legendY + legendLines.length * 17, 13);
 
   return cv;
 }
@@ -1795,7 +1803,7 @@ async function renderExportComparisonChartImage(W, H) {
   cv.style.cssText = 'position:fixed;left:-9999px;visibility:hidden';
   document.body.appendChild(cv);
 
-  const FONT = 18;
+  const FONT = Math.max(12, Math.round(18 * W / 1200));
   const yScale = { title: { display: true, text: 'CO₂ (ppm)', font: { size: FONT } }, ticks: { font: { size: FONT } }, min: yMin };
   if (yMax != null) yScale.max = yMax;
 
@@ -1834,12 +1842,19 @@ async function generateComparisonSocialCard(preset = 'landscape') {
   const headerColor = logoData?.bgColor ?? '#1e40af';
 
   const PRESETS = {
-    landscape: { W: 1200, targetH: 675 },
+    landscape: { W: 1200, targetH: 627 },
     square:    { W: 1080, targetH: 1080 },
+    portrait:  { W:  627, targetH: 1200 },
   };
   const { W, targetH } = PRESETS[preset] ?? PRESETS.landscape;
   const HEADER_H = 70;
   const TITLE_H  = 155;
+  const sc = W / 1200;
+  const hBrandFont = Math.max(15, Math.round(22 * sc));
+  const hDateFont  = Math.max(12, Math.round(18 * sc));
+  const titleFont  = Math.max(26, Math.round(40 * sc));
+  const statsFont  = Math.max(12, Math.round(20 * sc));
+  const padX       = Math.max(18, Math.round(32 * sc));
 
   // ── Pre-compute legend lines ──
   const legendBaseCmp = 'Box: 25th–75th percentile · Center line: median · Whiskers: most extreme value within 1.5× IQR (box height) · Dots beyond whiskers: outliers · n = number of locations';
@@ -1878,18 +1893,18 @@ async function generateComparisonSocialCard(preset = 'landscape') {
     ctx.fillRect(logoX, (HEADER_H - LOGO_SIZE) / 2, LOGO_SIZE, LOGO_SIZE);
     ctx.drawImage(logo, logoX, (HEADER_H - LOGO_SIZE) / 2, LOGO_SIZE, LOGO_SIZE);
   }
-  const textX = logo ? logoX + LOGO_SIZE + 10 : 32;
+  const textX = logo ? logoX + LOGO_SIZE + 10 : padX;
 
-  ctx.font = 'bold 22px "Titillium Web", system-ui, sans-serif';
+  ctx.font = `bold ${hBrandFont}px "Titillium Web", system-ui, sans-serif`;
   ctx.fillStyle = '#ffffff';
   ctx.textBaseline = 'middle';
   ctx.fillText('indoorco2map.com', textX, HEADER_H / 2);
 
   const dateStr = new Date().toLocaleDateString('en', { month: 'long', day: 'numeric', year: 'numeric' });
-  ctx.font = '18px "Titillium Web", system-ui, sans-serif';
+  ctx.font = `${hDateFont}px "Titillium Web", system-ui, sans-serif`;
   ctx.fillStyle = 'rgba(255,255,255,0.72)';
   ctx.textAlign = 'right';
-  ctx.fillText(dateStr, W - 32, HEADER_H / 2);
+  ctx.fillText(dateStr, W - padX, HEADER_H / 2);
   ctx.textAlign = 'left';
 
   // Title area — derive from common slot filters
@@ -1914,13 +1929,13 @@ async function generateComparisonSocialCard(preset = 'landscape') {
   const statsLine = `${slots.length} comparison group${slots.length !== 1 ? 's' : ''} · ${dateDescCmp}`;
 
   ctx.textBaseline = 'top';
-  ctx.font = 'bold 40px "Titillium Web", system-ui, sans-serif';
+  ctx.font = `bold ${titleFont}px "Titillium Web", system-ui, sans-serif`;
   ctx.fillStyle = '#111827';
-  ctx.fillText(compTitle, 32, HEADER_H + 16);
+  ctx.fillText(compTitle, padX, HEADER_H + 16);
 
-  ctx.font = '20px "Titillium Web", system-ui, sans-serif';
+  ctx.font = `${statsFont}px "Titillium Web", system-ui, sans-serif`;
   ctx.fillStyle = '#9ca3af';
-  ctx.fillText(statsLine, 32, HEADER_H + 16 + 46);
+  ctx.fillText(statsLine, padX, HEADER_H + 16 + 46);
 
   // Chart
   const chartDataUrl = await renderExportComparisonChartImage(W, chartDispH);
@@ -1934,8 +1949,8 @@ async function generateComparisonSocialCard(preset = 'landscape') {
 
   // ── Legend below chart ───────────────────────────────────
   const legendYCmp = chartY + chartDispH + 10;
-  legendLinesCmp.forEach((line, i) => drawLegendLine(ctx, line, 32, legendYCmp + i * 17, 13));
-  if (dotsNoteCmp) drawLegendLine(ctx, dotsNoteCmp, 32, legendYCmp + legendLinesCmp.length * 17, 13);
+  legendLinesCmp.forEach((line, i) => drawLegendLine(ctx, line, padX, legendYCmp + i * 17, 13));
+  if (dotsNoteCmp) drawLegendLine(ctx, dotsNoteCmp, padX, legendYCmp + legendLinesCmp.length * 17, 13);
 
   return cv;
 }
@@ -2062,8 +2077,9 @@ function showExportModal(canvas, altText = '', generateFn = null) {
         <button id="export-close-btn">✕</button>
       </div>
       ${generateFn ? `<div id="export-format-row">
-        <button class="export-format-btn active" data-preset="landscape">Landscape 16:9<br><small>1200 × 675</small></button>
-        <button class="export-format-btn" data-preset="square">Square 1:1<br><small>1080 × 1080</small></button>
+        <button class="export-format-btn active" data-preset="landscape">Landscape<br><small>1200 × 627</small></button>
+        <button class="export-format-btn" data-preset="square">Square<br><small>1080 × 1080</small></button>
+        <button class="export-format-btn" data-preset="portrait">Portrait<br><small>627 × 1200</small></button>
       </div>` : ''}
       <div id="export-preview-area">
         <img id="export-preview-img" src="${currentCanvas.toDataURL('image/png')}" alt="${safeAlt || 'Social media card preview'}">

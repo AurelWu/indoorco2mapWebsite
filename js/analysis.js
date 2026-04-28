@@ -295,6 +295,37 @@ function getWhiskerMax(groups) {
 
 // ─── Chart rendering ─────────────────────────────────────────────────────────
 
+const medianLinePlugin = {
+  id: 'medianLine',
+  afterDatasetsDraw(chart) {
+    if (state.pointMode !== 'all') return;
+    const { ctx, scales } = chart;
+    chart.data.datasets.forEach((dataset, di) => {
+      const meta = chart.getDatasetMeta(di);
+      dataset.data.forEach((vals, i) => {
+        if (!Array.isArray(vals) || !vals.length) return;
+        const el = meta.data[i];
+        if (!el) return;
+        const sorted = [...vals].filter(v => typeof v === 'number' && isFinite(v)).sort((a, b) => a - b);
+        if (!sorted.length) return;
+        const n = sorted.length;
+        const median = n % 2 === 0 ? (sorted[n/2-1] + sorted[n/2]) / 2 : sorted[Math.floor(n/2)];
+        const yPx = scales.y.getPixelForValue(median);
+        const halfW = (el.width ?? chart.scales.x.bandwidth * 0.7) / 2;
+        const color = Array.isArray(dataset.borderColor) ? dataset.borderColor[i] : 'rgba(29,78,216,1)';
+        ctx.save();
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.moveTo(el.x - halfW, yPx);
+        ctx.lineTo(el.x + halfW, yPx);
+        ctx.stroke();
+        ctx.restore();
+      });
+    });
+  }
+};
+
 const medianLabelPlugin = {
   id: 'medianLabels',
   afterDatasetsDraw(chart) {
@@ -329,15 +360,6 @@ const medianLabelPlugin = {
         ctx.restore();
       });
     });
-    // Caption note in bottom-right of plot area
-    const noteSize = Math.max(10, fontSize - 5);
-    ctx.save();
-    ctx.font = `${noteSize}px sans-serif`;
-    ctx.fillStyle = 'rgba(120,120,120,0.75)';
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'bottom';
-    ctx.fillText('Labeled numbers are median CO₂ values in ppm', chart.chartArea.right - 4, chart.chartArea.bottom - 4);
-    ctx.restore();
   }
 };
 
@@ -386,7 +408,7 @@ function renderMainChart(groups) {
       }]
     },
     options: buildChartOptions(false, state.pointMode === 'none' ? getWhiskerMax(groups) : getDataMax(groups), state.splitBy === 'location' ? groups.map(g => g.meta || null) : null),
-    plugins: [medianLabelPlugin]
+    plugins: [medianLinePlugin, medianLabelPlugin]
   });
 }
 
@@ -434,7 +456,7 @@ function renderComparisonChart(slotData) {
       }]
     },
     options: buildChartOptions(true, state.pointMode === 'none' ? getWhiskerMax(slotData) : getDataMax(slotData)),
-    plugins: [medianLabelPlugin]
+    plugins: [medianLinePlugin, medianLabelPlugin]
   });
 }
 
@@ -1500,6 +1522,37 @@ function loadCardLogo() {
   return _logoPromise;
 }
 
+function drawExportMedianLines(canvas, chart) {
+  if (state.pointMode !== 'all') return;
+  const ctx2d = canvas.getContext('2d');
+  const { scales, chartArea } = chart;
+  chart.data.datasets.forEach((dataset, di) => {
+    const meta = chart.getDatasetMeta(di);
+    const nBars = dataset.data.length;
+    const barSlotW = (chartArea.right - chartArea.left) / Math.max(nBars, 1);
+    dataset.data.forEach((vals, i) => {
+      if (!Array.isArray(vals) || !vals.length) return;
+      const sorted = [...vals].filter(v => typeof v === 'number' && isFinite(v)).sort((a, b) => a - b);
+      if (!sorted.length) return;
+      const n = sorted.length;
+      const median = n % 2 === 0 ? (sorted[n/2-1] + sorted[n/2]) / 2 : sorted[Math.floor(n/2)];
+      const yPx = scales.y.getPixelForValue(median);
+      const el = meta.data[i];
+      const barX = (el && typeof el.x === 'number') ? el.x : scales.x.getPixelForValue(i);
+      const halfW = (el && el.width > 0) ? el.width / 2 : barSlotW * 0.36;
+      const color = Array.isArray(dataset.borderColor) ? dataset.borderColor[i] : 'rgba(29,78,216,1)';
+      ctx2d.save();
+      ctx2d.strokeStyle = color;
+      ctx2d.lineWidth = 3;
+      ctx2d.beginPath();
+      ctx2d.moveTo(barX - halfW, yPx);
+      ctx2d.lineTo(barX + halfW, yPx);
+      ctx2d.stroke();
+      ctx2d.restore();
+    });
+  });
+}
+
 async function renderExportChartImage(W, H) {
   const srcDs = mainChart.data.datasets[0];
   const yMin  = mainChart.scales?.y?.min ?? 400;
@@ -1550,10 +1603,46 @@ async function renderExportChartImage(W, H) {
     plugins: [medianLabelPlugin]
   });
 
+  drawExportMedianLines(cv, chart);
   const dataUrl = chart.toBase64Image('image/png', 1);
   chart.destroy();
   document.body.removeChild(cv);
   return dataUrl;
+}
+
+function drawLegendLine(ctx, text, x, y, fontSize) {
+  const LABEL_COLOR = '#1f2937';
+  const TEXT_COLOR  = '#374151';
+  const segments = text.split(' · ');
+  let curX = x;
+  segments.forEach((seg, si) => {
+    if (si > 0) {
+      ctx.font = `${fontSize}px "Titillium Web", system-ui, sans-serif`;
+      ctx.fillStyle = TEXT_COLOR;
+      ctx.fillText(' · ', curX, y);
+      curX += ctx.measureText(' · ').width;
+    }
+    const colonPos = seg.indexOf(': ');
+    const equalsPos = seg.indexOf(' = ');
+    if (colonPos !== -1 || equalsPos !== -1) {
+      const useColon = colonPos !== -1 && (equalsPos === -1 || colonPos < equalsPos);
+      const boldPart   = useColon ? seg.slice(0, colonPos + 1) : seg.slice(0, equalsPos + 2);
+      const normalPart = useColon ? seg.slice(colonPos + 1)    : seg.slice(equalsPos + 2);
+      ctx.font = `bold ${fontSize}px "Titillium Web", system-ui, sans-serif`;
+      ctx.fillStyle = LABEL_COLOR;
+      ctx.fillText(boldPart, curX, y);
+      curX += ctx.measureText(boldPart).width;
+      ctx.font = `${fontSize}px "Titillium Web", system-ui, sans-serif`;
+      ctx.fillStyle = TEXT_COLOR;
+      ctx.fillText(normalPart, curX, y);
+      curX += ctx.measureText(normalPart).width;
+    } else {
+      ctx.font = `${fontSize}px "Titillium Web", system-ui, sans-serif`;
+      ctx.fillStyle = TEXT_COLOR;
+      ctx.fillText(seg, curX, y);
+      curX += ctx.measureText(seg).width;
+    }
+  });
 }
 
 async function generateSocialCard() {
@@ -1568,12 +1657,29 @@ async function generateSocialCard() {
   const cssH = mainChart.canvas.offsetHeight || mainChart.canvas.height;
 
   const W = 1200;
-  const HEADER_H = 76;   // blue bar
+  const HEADER_H = 70;   // blue bar
   const TITLE_H  = 155;  // title + stats + filter desc + padding
+
+  // ── Pre-compute legend lines to size the canvas correctly ──
+  const nLabel = state.splitBy === 'location' ? 'number of visits' : 'number of locations';
+  const legendBase = `Box: 25th–75th percentile · Center line: median · Whiskers: most extreme value within 1.5× IQR (box height) · Dots beyond whiskers: outliers · n = ${nLabel}`;
+  const dotsNote = state.pointMode === 'all'
+    ? "Individual dots: each dot is one location's avg CO₂, scattered horizontally; dots beyond whiskers are outliers centered above/below the box."
+    : state.pointMode === 'outliers'
+    ? 'Outlier dots: individual location averages that fall outside the whiskers, shown at their value on the y-axis.'
+    : null;
+  const _mCtx = document.createElement('canvas').getContext('2d');
+  _mCtx.font = '13px "Titillium Web", system-ui, sans-serif';
+  const _lParts = legendBase.split(' · ');
+  const _lMid = Math.ceil(_lParts.length / 2);
+  const legendLines = _mCtx.measureText(legendBase).width > W - 64
+    ? [_lParts.slice(0, _lMid).join(' · '), _lParts.slice(_lMid).join(' · ')]
+    : [legendBase];
+  const LEGEND_H = (legendLines.length + (dotsNote ? 1 : 0)) * 17 + 20;
 
   // Scale chart to fill export width, preserving on-screen CSS aspect ratio
   const chartDispH = Math.round((cssH / cssW) * W);
-  const H = HEADER_H + TITLE_H + chartDispH;
+  const H = HEADER_H + TITLE_H + chartDispH + LEGEND_H;
 
   const cv = document.createElement('canvas');
   cv.width = W; cv.height = H;
@@ -1637,17 +1743,17 @@ async function generateSocialCard() {
 
   ctx.textBaseline = 'top';
 
-  ctx.font = 'bold 46px "Titillium Web", system-ui, sans-serif';
+  ctx.font = 'bold 40px "Titillium Web", system-ui, sans-serif';
   ctx.fillStyle = '#111827';
-  ctx.fillText(cardTitle, 32, HEADER_H + 20);
+  ctx.fillText(cardTitle, 32, HEADER_H + 16);
 
   ctx.font = '24px "Titillium Web", system-ui, sans-serif';
   ctx.fillStyle = '#6b7280';
-  ctx.fillText(filterDesc.slice(0, 130), 32, HEADER_H + 20 + 54);
+  ctx.fillText(filterDesc.slice(0, 130), 32, HEADER_H + 16 + 46);
 
   ctx.font = '20px "Titillium Web", system-ui, sans-serif';
   ctx.fillStyle = '#9ca3af';
-  ctx.fillText(statsLine.slice(0, 100), 32, HEADER_H + 20 + 54 + 32);
+  ctx.fillText(statsLine.slice(0, 100), 32, HEADER_H + 16 + 46 + 30);
 
   // ── Chart — rendered fresh at export size with large fonts ──
   const chartDataUrl = await renderExportChartImage(W, chartDispH);
@@ -1658,6 +1764,11 @@ async function generateSocialCard() {
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, chartY, W, chartDispH);
   ctx.drawImage(chartImg, 0, chartY, W, chartDispH);
+
+  // ── Legend below chart ───────────────────────────────────
+  const legendY = chartY + chartDispH + 10;
+  legendLines.forEach((line, i) => drawLegendLine(ctx, line, 32, legendY + i * 17, 13));
+  if (dotsNote) drawLegendLine(ctx, dotsNote, 32, legendY + legendLines.length * 17, 13);
 
   return cv;
 }
@@ -1696,6 +1807,7 @@ async function renderExportComparisonChartImage(W, H) {
     plugins: [medianLabelPlugin]
   });
 
+  drawExportMedianLines(cv, chart);
   const dataUrl = chart.toBase64Image('image/png', 1);
   chart.destroy();
   document.body.removeChild(cv);
@@ -1713,10 +1825,27 @@ async function generateComparisonSocialCard() {
   const cssH = comparisonChart.canvas.offsetHeight || comparisonChart.canvas.height;
 
   const W = 1200;
-  const HEADER_H = 76;
+  const HEADER_H = 70;
   const TITLE_H  = 155;
+
+  // ── Pre-compute legend lines ──
+  const legendBaseCmp = 'Box: 25th–75th percentile · Center line: median · Whiskers: most extreme value within 1.5× IQR (box height) · Dots beyond whiskers: outliers · n = number of locations';
+  const dotsNoteCmp = state.pointMode === 'all'
+    ? "Individual dots: each dot is one location's avg CO₂, scattered horizontally; dots beyond whiskers are outliers centered above/below the box."
+    : state.pointMode === 'outliers'
+    ? 'Outlier dots: individual location averages that fall outside the whiskers, shown at their value on the y-axis.'
+    : null;
+  const _mCtxCmp = document.createElement('canvas').getContext('2d');
+  _mCtxCmp.font = '13px "Titillium Web", system-ui, sans-serif';
+  const _lPartsCmp = legendBaseCmp.split(' · ');
+  const _lMidCmp = Math.ceil(_lPartsCmp.length / 2);
+  const legendLinesCmp = _mCtxCmp.measureText(legendBaseCmp).width > W - 64
+    ? [_lPartsCmp.slice(0, _lMidCmp).join(' · '), _lPartsCmp.slice(_lMidCmp).join(' · ')]
+    : [legendBaseCmp];
+  const LEGEND_H_CMP = (legendLinesCmp.length + (dotsNoteCmp ? 1 : 0)) * 17 + 20;
+
   const chartDispH = Math.round((cssH / cssW) * W);
-  const H = HEADER_H + TITLE_H + chartDispH;
+  const H = HEADER_H + TITLE_H + chartDispH + LEGEND_H_CMP;
 
   const cv = document.createElement('canvas');
   cv.width = W; cv.height = H;
@@ -1772,13 +1901,13 @@ async function generateComparisonSocialCard() {
   const statsLine = `${slots.length} comparison group${slots.length !== 1 ? 's' : ''} · ${dateDescCmp}`;
 
   ctx.textBaseline = 'top';
-  ctx.font = 'bold 46px "Titillium Web", system-ui, sans-serif';
+  ctx.font = 'bold 40px "Titillium Web", system-ui, sans-serif';
   ctx.fillStyle = '#111827';
-  ctx.fillText(compTitle, 32, HEADER_H + 20);
+  ctx.fillText(compTitle, 32, HEADER_H + 16);
 
   ctx.font = '20px "Titillium Web", system-ui, sans-serif';
   ctx.fillStyle = '#9ca3af';
-  ctx.fillText(statsLine, 32, HEADER_H + 20 + 54);
+  ctx.fillText(statsLine, 32, HEADER_H + 16 + 46);
 
   // Chart
   const chartDataUrl = await renderExportComparisonChartImage(W, chartDispH);
@@ -1789,6 +1918,11 @@ async function generateComparisonSocialCard() {
   ctx.fillStyle = '#ffffff';
   ctx.fillRect(0, chartY, W, chartDispH);
   ctx.drawImage(chartImg, 0, chartY, W, chartDispH);
+
+  // ── Legend below chart ───────────────────────────────────
+  const legendYCmp = chartY + chartDispH + 10;
+  legendLinesCmp.forEach((line, i) => drawLegendLine(ctx, line, 32, legendYCmp + i * 17, 13));
+  if (dotsNoteCmp) drawLegendLine(ctx, dotsNoteCmp, 32, legendYCmp + legendLinesCmp.length * 17, 13);
 
   return cv;
 }

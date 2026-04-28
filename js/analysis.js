@@ -283,7 +283,7 @@ function calcBoxStats(vals) {
   const lw = sorted.find(v => v >= q1 - 1.5 * iqr) ?? sorted[0];
   const uw = [...sorted].reverse().find(v => v <= q3 + 1.5 * iqr) ?? sorted[n - 1];
   const outliers = sorted.filter(v => v < q1 - 1.5 * iqr || v > q3 + 1.5 * iqr);
-  return { median, q1, q3, iqr, lw, uw, outliers, min: sorted[0], max: sorted[n - 1] };
+  return { n, median, q1, q3, iqr, lw, uw, outliers, min: sorted[0], max: sorted[n - 1] };
 }
 
 function getDataMax(groups) {
@@ -1945,6 +1945,14 @@ function generateMainAltText() {
   const fmtV = v => Math.round(v).toLocaleString('en');
   const fmtTs = ts => new Date(ts).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
   const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  const IQR_NOTE = 'The IQR (interquartile range) spans from Q1 (25th percentile) to Q3 (75th percentile), covering the middle 50% of values; a smaller IQR indicates a more consistent distribution.';
+
+  const descGroup = (s, label) => {
+    const outlierPart = s.outliers.length > 0
+      ? `; ${s.outliers.length} outlier${s.outliers.length > 1 ? 's' : ''}, highest ${fmtV(s.max)} ppm`
+      : '; no outliers';
+    return `${label} (n=${fmtV(s.n)}): median ${fmtV(s.median)} ppm, Q1 ${fmtV(s.q1)} ppm, Q3 ${fmtV(s.q3)} ppm, IQR ${fmtV(s.iqr)} ppm; whiskers ${fmtV(s.lw)}–${fmtV(s.uw)} ppm${outlierPart}.`;
+  };
 
   let titleContext = '';
   if (state.splitBy !== 'type' && state.locTypes.length === 1 && !state.locTypeExclude)
@@ -1970,14 +1978,12 @@ function generateMainAltText() {
   if (state.splitBy === 'none' && data.length === 1) {
     const s = calcBoxStats(data[0]);
     if (!s) return '';
-    const outlierNote = s.outliers.length > 0
-      ? `; ${s.outliers.length} outlier${s.outliers.length > 1 ? 's' : ''} up to ${fmtV(s.max)} ppm`
-      : '';
     return [
       `Box plot of indoor CO₂ levels (ppm)${titleContext}.`,
       `Filters: ${filterStr}.`,
       statsLine ? `Data: ${statsLine}.` : '',
-      `Distribution: median ${fmtV(s.median)} ppm; middle 50% of locations between ${fmtV(s.q1)} and ${fmtV(s.q3)} ppm (IQR ${fmtV(s.iqr)} ppm); most locations between ${fmtV(s.lw)} and ${fmtV(s.uw)} ppm${outlierNote}.`,
+      descGroup(s, 'All data'),
+      IQR_NOTE,
     ].filter(Boolean).join(' ');
   }
 
@@ -1988,32 +1994,57 @@ function generateMainAltText() {
   }).filter(Boolean);
   if (!groups.length) return '';
 
-  const byMedian = [...groups].sort((a, b) => a.s.median - b.s.median);
-  const lo = byMedian[0], hi = byMedian[byMedian.length - 1];
-  const globalLW = Math.min(...groups.map(g => g.s.lw));
-  const globalUW = Math.max(...groups.map(g => g.s.uw));
   const dim = splitLabel[state.splitBy] || '';
-  return [
-    `Box plot comparing indoor CO₂ levels (ppm) ${dim}${titleContext} — ${groups.length} groups.`,
+  const header = [
+    `Box plot comparing indoor CO₂ levels (ppm) ${dim}${titleContext} — ${groups.length} group${groups.length > 1 ? 's' : ''}.`,
     `Filters: ${filterStr}.`,
     statsLine ? `Data: ${statsLine}.` : '',
-    `Median range across groups: ${fmtV(lo.s.median)} ppm (${lo.label}) to ${fmtV(hi.s.median)} ppm (${hi.label}). Overall values mostly between ${fmtV(globalLW)} and ${fmtV(globalUW)} ppm.`,
   ].filter(Boolean).join(' ');
+
+  if (groups.length <= 6) {
+    const groupLines = groups.map(g => descGroup(g.s, g.label));
+    return [header, ...groupLines, IQR_NOTE].join(' ');
+  }
+
+  // > 6 groups: full detail for best 3 and worst 3 (by median), aggregate middle
+  const best3  = groups.slice(0, 3);
+  const worst3 = groups.slice(-3);
+  const middle = groups.slice(3, -3);
+
+  const middleMedianMin = Math.min(...middle.map(g => g.s.median));
+  const middleMedianMax = Math.max(...middle.map(g => g.s.median));
+  const middleLW = Math.min(...middle.map(g => g.s.lw));
+  const middleUW = Math.max(...middle.map(g => g.s.uw));
+  const middleOutliers = middle.reduce((sum, g) => sum + g.s.outliers.length, 0);
+  const middleNames = middle.map(g => g.label).join(', ');
+  const middleSummary = `The ${middle.length} middle group${middle.length > 1 ? 's' : ''} — ${middleNames} — have medians between ${fmtV(middleMedianMin)} and ${fmtV(middleMedianMax)} ppm; whiskers ${fmtV(middleLW)}–${fmtV(middleUW)} ppm${middleOutliers > 0 ? `; ${middleOutliers} outliers combined` : ''}.`;
+
+  return [
+    header,
+    'Groups with lowest CO₂:',  ...best3.map(g => descGroup(g.s, g.label)),
+    'Groups with highest CO₂:', ...worst3.map(g => descGroup(g.s, g.label)),
+    middleSummary,
+    IQR_NOTE,
+  ].join(' ');
 }
 
 function generateComparisonAltText() {
   if (!comparisonChart) return '';
   const fmtV = v => Math.round(v).toLocaleString('en');
+  const IQR_NOTE = 'The IQR (interquartile range) spans from Q1 (25th percentile) to Q3 (75th percentile), covering the middle 50% of values; a smaller IQR indicates a more consistent distribution.';
   const data = comparisonChart.data.datasets[0]?.data || [];
   const labels = comparisonChart.data.labels || [];
   const parts = data.map((vals, i) => {
     const s = calcBoxStats(vals);
     if (!s) return null;
     const label = labels[i] || `Group ${i + 1}`;
-    return `“${label}”: median ${fmtV(s.median)} ppm, IQR ${fmtV(s.q1)}–${fmtV(s.q3)} ppm`;
+    const outlierPart = s.outliers.length > 0
+      ? `; ${s.outliers.length} outlier${s.outliers.length > 1 ? 's' : ''}, highest ${fmtV(s.max)} ppm`
+      : '; no outliers';
+    return `”${label}” (n=${fmtV(s.n)}): median ${fmtV(s.median)} ppm, Q1 ${fmtV(s.q1)} ppm, Q3 ${fmtV(s.q3)} ppm, IQR ${fmtV(s.iqr)} ppm; whiskers ${fmtV(s.lw)}–${fmtV(s.uw)} ppm${outlierPart}.`;
   }).filter(Boolean);
   if (!parts.length) return '';
-  return `Side-by-side box plot comparing indoor CO₂ levels (ppm) across ${parts.length} filter set${parts.length > 1 ? 's' : ''}. ${parts.join('. ')}.`;
+  return `Side-by-side box plot comparing indoor CO₂ levels (ppm) across ${parts.length} filter set${parts.length > 1 ? 's' : ''}. ${parts.join(' ')} ${IQR_NOTE}`;
 }
 
 function showExportModal(canvas, altText = '') {

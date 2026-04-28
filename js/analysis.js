@@ -606,10 +606,10 @@ function rangeStr(sortedVals, fmt) {
 
 function updateSummary(filtered, groups) {
   const el = document.getElementById('chart-summary');
-  const locCount = aggregateByLocation(filtered).size;
-  const visitCount = filtered.length;
+  const locCount = groups.reduce((sum, g) => sum + g.count, 0);
+  const visitCount = groups.reduce((sum, g) => sum + (g.visitCount ?? g.values.length), 0);
   const catCount = groups.length;
-  const LIMIT_QUALIFIER = { count: 'most frequent', highest: 'highest median CO₂', lowest: 'lowest median CO₂' };
+  const LIMIT_QUALIFIER = { count: 'most frequently measured', highest: 'highest median CO₂', lowest: 'lowest median CO₂' };
   const catSuffix = state.splitBy === 'time'    ? ` · ${catCount} periods`
                   : state.splitBy === 'none'    ? ''
                   : (() => {

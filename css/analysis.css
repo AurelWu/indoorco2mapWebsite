@@ -920,3 +920,26 @@ select.exclude-mode {
 
 #export-social-btn:hover, #export-comparison-btn:hover { background: #e5e7eb; }
 #export-social-btn:disabled, #export-comparison-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+#export-alt-area {
+  display: none;
+  border-top: 1px solid #e5e7eb;
+  padding-top: 10px;
+}
+
+#export-alt-text {
+  font-size: 0.82rem;
+  color: #374151;
+  line-height: 1.55;
+  margin: 0 0 8px;
+  white-space: pre-wrap;
+}
+
+#export-alt-copy {
+  font-size: 0.8rem;
+}
+
+#export-alt-msg {
+  font-size: 0.82rem;
+  margin-left: 6px;
+}

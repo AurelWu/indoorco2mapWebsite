@@ -273,6 +273,19 @@ function pct(sorted, p) {
   return lo === hi ? sorted[lo] : sorted[lo] + (idx - lo) * (sorted[hi] - sorted[lo]);
 }
 
+function calcBoxStats(vals) {
+  const sorted = [...vals].filter(v => typeof v === 'number' && isFinite(v)).sort((a, b) => a - b);
+  if (!sorted.length) return null;
+  const n = sorted.length;
+  const median = n % 2 === 0 ? (sorted[n/2-1] + sorted[n/2]) / 2 : sorted[Math.floor(n/2)];
+  const q1 = pct(sorted, 25), q3 = pct(sorted, 75);
+  const iqr = q3 - q1;
+  const lw = sorted.find(v => v >= q1 - 1.5 * iqr) ?? sorted[0];
+  const uw = [...sorted].reverse().find(v => v <= q3 + 1.5 * iqr) ?? sorted[n - 1];
+  const outliers = sorted.filter(v => v < q1 - 1.5 * iqr || v > q3 + 1.5 * iqr);
+  return { median, q1, q3, iqr, lw, uw, outliers, min: sorted[0], max: sorted[n - 1] };
+}
+
 function getDataMax(groups) {
   let max = -Infinity;
   for (const g of groups) {
@@ -1927,9 +1940,86 @@ async function generateComparisonSocialCard() {
   return cv;
 }
 
-function showExportModal(canvas) {
+function generateMainAltText() {
+  if (!mainChart) return '';
+  const fmtV = v => Math.round(v).toLocaleString('en');
+  const fmtTs = ts => new Date(ts).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
+  const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+
+  let titleContext = '';
+  if (state.splitBy !== 'type' && state.locTypes.length === 1 && !state.locTypeExclude)
+    titleContext = ' in ' + cap(locTypeMS?.getLabel(state.locTypes[0]) || state.locTypes[0]);
+  else if (state.splitBy !== 'country' && state.countries.length === 1 && !state.countryExclude)
+    titleContext = ' in ' + cap(countryMS?.getLabel(state.countries[0]) || state.countries[0]);
+
+  const splitLabel = { none: '', country: 'by country', type: 'by location type', brand: 'by brand', location: 'for individual locations', time: 'by time period' };
+  const countryDesc = state.countries.length === 0 ? 'all countries'
+    : (state.countryExclude ? 'excl. ' : '') + state.countries.map(v => countryMS?.getLabel(v) || v).join(', ');
+  const typeDesc = state.locTypes.length === 0 ? 'all location types'
+    : (state.locTypeExclude ? 'excl. ' : '') + state.locTypes.map(v => locTypeMS?.getLabel(v) || v).join(', ');
+  const brandDesc = state.brands.length > 0
+    ? (state.brandExclude ? 'excl. ' : '') + state.brands.map(v => brandMS?.getLabel(v) || v).join(', ')
+    : null;
+  const dateDesc = fmtTs(Math.max(state.dateMin, globalDateMin)) + '–' + fmtTs(Math.min(state.dateMax, globalDateMax));
+  const filterStr = [countryDesc, typeDesc, brandDesc, dateDesc].filter(Boolean).join('; ');
+
+  const statsLine = (document.getElementById('chart-summary')?.innerText || '').trim().split('\n')[0]?.trim() || '';
+  const data = mainChart.data.datasets[0]?.data || [];
+  const labels = mainChart.data.labels || [];
+
+  if (state.splitBy === 'none' && data.length === 1) {
+    const s = calcBoxStats(data[0]);
+    if (!s) return '';
+    const outlierNote = s.outliers.length > 0
+      ? `; ${s.outliers.length} outlier${s.outliers.length > 1 ? 's' : ''} up to ${fmtV(s.max)} ppm`
+      : '';
+    return [
+      `Box plot of indoor CO₂ levels (ppm)${titleContext}.`,
+      `Filters: ${filterStr}.`,
+      statsLine ? `Data: ${statsLine}.` : '',
+      `Distribution: median ${fmtV(s.median)} ppm; middle 50% of locations between ${fmtV(s.q1)} and ${fmtV(s.q3)} ppm (IQR ${fmtV(s.iqr)} ppm); most locations between ${fmtV(s.lw)} and ${fmtV(s.uw)} ppm${outlierNote}.`,
+    ].filter(Boolean).join(' ');
+  }
+
+  const groups = data.map((vals, i) => {
+    const s = calcBoxStats(vals);
+    const label = (labels[i] || '').replace(/\s*\(n=\d+\)$/, '');
+    return s ? { label, s } : null;
+  }).filter(Boolean);
+  if (!groups.length) return '';
+
+  const byMedian = [...groups].sort((a, b) => a.s.median - b.s.median);
+  const lo = byMedian[0], hi = byMedian[byMedian.length - 1];
+  const globalLW = Math.min(...groups.map(g => g.s.lw));
+  const globalUW = Math.max(...groups.map(g => g.s.uw));
+  const dim = splitLabel[state.splitBy] || '';
+  return [
+    `Box plot comparing indoor CO₂ levels (ppm) ${dim}${titleContext} — ${groups.length} groups.`,
+    `Filters: ${filterStr}.`,
+    statsLine ? `Data: ${statsLine}.` : '',
+    `Median range across groups: ${fmtV(lo.s.median)} ppm (${lo.label}) to ${fmtV(hi.s.median)} ppm (${hi.label}). Overall values mostly between ${fmtV(globalLW)} and ${fmtV(globalUW)} ppm.`,
+  ].filter(Boolean).join(' ');
+}
+
+function generateComparisonAltText() {
+  if (!comparisonChart) return '';
+  const fmtV = v => Math.round(v).toLocaleString('en');
+  const data = comparisonChart.data.datasets[0]?.data || [];
+  const labels = comparisonChart.data.labels || [];
+  const parts = data.map((vals, i) => {
+    const s = calcBoxStats(vals);
+    if (!s) return null;
+    const label = labels[i] || `Group ${i + 1}`;
+    return `“${label}”: median ${fmtV(s.median)} ppm, IQR ${fmtV(s.q1)}–${fmtV(s.q3)} ppm`;
+  }).filter(Boolean);
+  if (!parts.length) return '';
+  return `Side-by-side box plot comparing indoor CO₂ levels (ppm) across ${parts.length} filter set${parts.length > 1 ? 's' : ''}. ${parts.join('. ')}.`;
+}
+
+function showExportModal(canvas, altText = '') {
   document.getElementById('export-modal')?.remove();
   const dataUrl = canvas.toDataURL('image/png');
+  const safeAlt = altText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
   const modal = document.createElement('div');
   modal.id = 'export-modal';
@@ -1940,13 +2030,19 @@ function showExportModal(canvas) {
         <button id="export-close-btn">✕</button>
       </div>
       <div id="export-preview-area">
-        <img id="export-preview-img" src="${dataUrl}" alt="Export preview">
+        <img id="export-preview-img" src="${dataUrl}" alt="${safeAlt || 'Social media card preview'}">
       </div>
       <div id="export-modal-foot">
         <button id="export-copy-btn" class="export-action-btn primary">Copy image</button>
         <button id="export-dl-btn" class="export-action-btn">Download PNG</button>
+        ${altText ? '<button id="export-alt-btn" class="export-action-btn">Show alt text</button>' : ''}
         <span id="export-msg"></span>
       </div>
+      ${altText ? `<div id="export-alt-area">
+        <p id="export-alt-text">${safeAlt}</p>
+        <button id="export-alt-copy" class="export-action-btn"><i class="fas fa-copy"></i> Copy alt text</button>
+        <span id="export-alt-msg"></span>
+      </div>` : ''}
     </div>`;
   document.body.appendChild(modal);
 
@@ -1974,6 +2070,29 @@ function showExportModal(canvas) {
     a.href = dataUrl;
     a.click();
   };
+
+  if (altText) {
+    document.getElementById('export-alt-btn').onclick = () => {
+      const area = document.getElementById('export-alt-area');
+      const btn = document.getElementById('export-alt-btn');
+      const visible = area.style.display !== 'none' && area.style.display !== '';
+      area.style.display = visible ? 'none' : 'block';
+      btn.textContent = visible ? 'Show alt text' : 'Hide alt text';
+    };
+
+    document.getElementById('export-alt-copy').onclick = async () => {
+      const msg = document.getElementById('export-alt-msg');
+      try {
+        await navigator.clipboard.writeText(altText);
+        msg.textContent = '✓ Copied';
+        msg.style.color = '#16a34a';
+      } catch {
+        msg.textContent = 'Copy failed';
+        msg.style.color = '#dc2626';
+      }
+      setTimeout(() => { msg.textContent = ''; }, 2500);
+    };
+  }
 }
 
 // ─── Event wiring ────────────────────────────────────────────────────────────
@@ -1985,7 +2104,7 @@ function wireEvents() {
     btn.textContent = '…';
     try {
       const canvas = await generateSocialCard();
-      if (canvas) showExportModal(canvas);
+      if (canvas) showExportModal(canvas, generateMainAltText());
     } finally {
       btn.disabled = false;
       btn.textContent = 'Share';
@@ -1998,7 +2117,7 @@ function wireEvents() {
     btn.textContent = '…';
     try {
       const canvas = await generateComparisonSocialCard();
-      if (canvas) showExportModal(canvas);
+      if (canvas) showExportModal(canvas, generateComparisonAltText());
     } finally {
       btn.disabled = false;
       btn.textContent = 'Share';

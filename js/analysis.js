@@ -1658,18 +1658,18 @@ function drawLegendLine(ctx, text, x, y, fontSize) {
   });
 }
 
-async function generateSocialCard() {
+async function generateSocialCard(preset = 'landscape') {
   if (!mainChart) return null;
   await document.fonts.ready;
   const logoData = await loadCardLogo();
   const logo = logoData?.img ?? null;
   const headerColor = logoData?.bgColor ?? '#1e40af';
 
-  // Use CSS (logical) dimensions for aspect ratio to undo DPR scaling
-  const cssW = mainChart.canvas.offsetWidth || mainChart.canvas.width;
-  const cssH = mainChart.canvas.offsetHeight || mainChart.canvas.height;
-
-  const W = 1200;
+  const PRESETS = {
+    landscape: { W: 1200, targetH: 675 },
+    square:    { W: 1080, targetH: 1080 },
+  };
+  const { W, targetH } = PRESETS[preset] ?? PRESETS.landscape;
   const HEADER_H = 70;   // blue bar
   const TITLE_H  = 155;  // title + stats + filter desc + padding
 
@@ -1690,8 +1690,7 @@ async function generateSocialCard() {
     : [legendBase];
   const LEGEND_H = (legendLines.length + (dotsNote ? 1 : 0)) * 17 + 20;
 
-  // Scale chart to fill export width, preserving on-screen CSS aspect ratio
-  const chartDispH = Math.round((cssH / cssW) * W);
+  const chartDispH = Math.max(250, targetH - HEADER_H - TITLE_H - LEGEND_H);
   const H = HEADER_H + TITLE_H + chartDispH + LEGEND_H;
 
   const cv = document.createElement('canvas');
@@ -1827,17 +1826,18 @@ async function renderExportComparisonChartImage(W, H) {
   return dataUrl;
 }
 
-async function generateComparisonSocialCard() {
+async function generateComparisonSocialCard(preset = 'landscape') {
   if (!comparisonChart) return null;
   await document.fonts.ready;
   const logoData = await loadCardLogo();
   const logo = logoData?.img ?? null;
   const headerColor = logoData?.bgColor ?? '#1e40af';
 
-  const cssW = comparisonChart.canvas.offsetWidth || comparisonChart.canvas.width;
-  const cssH = comparisonChart.canvas.offsetHeight || comparisonChart.canvas.height;
-
-  const W = 1200;
+  const PRESETS = {
+    landscape: { W: 1200, targetH: 675 },
+    square:    { W: 1080, targetH: 1080 },
+  };
+  const { W, targetH } = PRESETS[preset] ?? PRESETS.landscape;
   const HEADER_H = 70;
   const TITLE_H  = 155;
 
@@ -1857,7 +1857,7 @@ async function generateComparisonSocialCard() {
     : [legendBaseCmp];
   const LEGEND_H_CMP = (legendLinesCmp.length + (dotsNoteCmp ? 1 : 0)) * 17 + 20;
 
-  const chartDispH = Math.round((cssH / cssW) * W);
+  const chartDispH = Math.max(250, targetH - HEADER_H - TITLE_H - LEGEND_H_CMP);
   const H = HEADER_H + TITLE_H + chartDispH + LEGEND_H_CMP;
 
   const cv = document.createElement('canvas');
@@ -2047,9 +2047,10 @@ function generateComparisonAltText() {
   return `Side-by-side box plot comparing indoor CO₂ levels (ppm) across ${parts.length} filter set${parts.length > 1 ? 's' : ''}. ${parts.join(' ')} ${IQR_NOTE}`;
 }
 
-function showExportModal(canvas, altText = '') {
+function showExportModal(canvas, altText = '', generateFn = null) {
   document.getElementById('export-modal')?.remove();
-  const dataUrl = canvas.toDataURL('image/png');
+  let currentCanvas = canvas;
+  let activePreset = 'landscape';
   const safeAlt = altText.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
   const modal = document.createElement('div');
@@ -2057,11 +2058,15 @@ function showExportModal(canvas, altText = '') {
   modal.innerHTML = `
     <div id="export-modal-box">
       <div id="export-modal-head">
-        <span>Social Media Card &mdash; 1200 &times; 630 px</span>
+        <span id="export-modal-title">Social Media Card &mdash; ${currentCanvas.width} &times; ${currentCanvas.height} px</span>
         <button id="export-close-btn">✕</button>
       </div>
+      ${generateFn ? `<div id="export-format-row">
+        <button class="export-format-btn active" data-preset="landscape">Landscape 16:9<br><small>1200 × 675</small></button>
+        <button class="export-format-btn" data-preset="square">Square 1:1<br><small>1080 × 1080</small></button>
+      </div>` : ''}
       <div id="export-preview-area">
-        <img id="export-preview-img" src="${dataUrl}" alt="${safeAlt || 'Social media card preview'}">
+        <img id="export-preview-img" src="${currentCanvas.toDataURL('image/png')}" alt="${safeAlt || 'Social media card preview'}">
       </div>
       <div id="export-modal-foot">
         <button id="export-copy-btn" class="export-action-btn primary">Copy image</button>
@@ -2081,9 +2086,25 @@ function showExportModal(canvas, altText = '') {
   document.getElementById('export-close-btn').onclick = close;
   modal.addEventListener('click', e => { if (e.target === modal) close(); });
 
+  if (generateFn) {
+    modal.querySelectorAll('.export-format-btn').forEach(btn => {
+      btn.onclick = async () => {
+        modal.querySelectorAll('.export-format-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        activePreset = btn.dataset.preset;
+        const previewImg = document.getElementById('export-preview-img');
+        previewImg.style.opacity = '0.4';
+        currentCanvas = await generateFn(activePreset);
+        previewImg.src = currentCanvas.toDataURL('image/png');
+        previewImg.style.opacity = '';
+        document.getElementById('export-modal-title').textContent = `Social Media Card — ${currentCanvas.width} × ${currentCanvas.height} px`;
+      };
+    });
+  }
+
   document.getElementById('export-copy-btn').onclick = async () => {
     const msg = document.getElementById('export-msg');
-    const blobPromise = new Promise((res, rej) => canvas.toBlob(b => b ? res(b) : rej(new Error('toBlob')), 'image/png'));
+    const blobPromise = new Promise((res, rej) => currentCanvas.toBlob(b => b ? res(b) : rej(new Error('toBlob')), 'image/png'));
 
     // iOS 16.4+: pass Promise directly into ClipboardItem so the write starts
     // synchronously within the user gesture, then resolves when the blob is ready.
@@ -2119,8 +2140,8 @@ function showExportModal(canvas, altText = '') {
 
   document.getElementById('export-dl-btn').onclick = () => {
     const a = document.createElement('a');
-    a.download = `indoor-co2-map-${Date.now()}.png`;
-    a.href = dataUrl;
+    a.download = `indoor-co2-levels-${activePreset}-${Date.now()}.png`;
+    a.href = currentCanvas.toDataURL('image/png');
     a.click();
   };
 
@@ -2156,8 +2177,8 @@ function wireEvents() {
     btn.disabled = true;
     btn.textContent = '…';
     try {
-      const canvas = await generateSocialCard();
-      if (canvas) showExportModal(canvas, generateMainAltText());
+      const canvas = await generateSocialCard('landscape');
+      if (canvas) showExportModal(canvas, generateMainAltText(), preset => generateSocialCard(preset));
     } finally {
       btn.disabled = false;
       btn.textContent = 'Share';
@@ -2169,8 +2190,8 @@ function wireEvents() {
     btn.disabled = true;
     btn.textContent = '…';
     try {
-      const canvas = await generateComparisonSocialCard();
-      if (canvas) showExportModal(canvas, generateComparisonAltText());
+      const canvas = await generateComparisonSocialCard('landscape');
+      if (canvas) showExportModal(canvas, generateComparisonAltText(), preset => generateComparisonSocialCard(preset));
     } finally {
       btn.disabled = false;
       btn.textContent = 'Share';

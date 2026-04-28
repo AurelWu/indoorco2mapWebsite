@@ -2083,15 +2083,37 @@ function showExportModal(canvas, altText = '') {
 
   document.getElementById('export-copy-btn').onclick = async () => {
     const msg = document.getElementById('export-msg');
-    try {
-      const blob = await new Promise((res, rej) => canvas.toBlob(b => b ? res(b) : rej(), 'image/png'));
-      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
-      msg.textContent = '✓ Copied to clipboard';
-      msg.style.color = '#16a34a';
-    } catch {
-      msg.textContent = 'Copy not supported — use Download';
-      msg.style.color = '#dc2626';
+    const blobPromise = new Promise((res, rej) => canvas.toBlob(b => b ? res(b) : rej(new Error('toBlob')), 'image/png'));
+
+    // iOS 16.4+: pass Promise directly into ClipboardItem so the write starts
+    // synchronously within the user gesture, then resolves when the blob is ready.
+    if (navigator.clipboard?.write) {
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ 'image/png': blobPromise })]);
+        msg.textContent = '✓ Copied to clipboard';
+        msg.style.color = '#16a34a';
+        setTimeout(() => { msg.textContent = ''; }, 3000);
+        return;
+      } catch { /* fall through */ }
     }
+
+    // Fallback: Web Share API — opens the native share sheet on iOS/Android.
+    // "Copy Image" is available there, which is the expected workaround on older iOS.
+    const blob = await blobPromise;
+    if (navigator.share) {
+      const file = new File([blob], 'indoor-co2-map.png', { type: 'image/png' });
+      if (navigator.canShare?.({ files: [file] })) {
+        try {
+          await navigator.share({ files: [file], title: 'Indoor CO₂ Levels — indoorco2map.com' });
+          return;
+        } catch (e) {
+          if (e.name === 'AbortError') return;
+        }
+      }
+    }
+
+    msg.textContent = 'Copy not supported — use Download';
+    msg.style.color = '#dc2626';
     setTimeout(() => { msg.textContent = ''; }, 3000);
   };
 

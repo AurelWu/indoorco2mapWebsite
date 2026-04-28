@@ -216,6 +216,33 @@
     <div id="main-chart-wrap" style="height:500px">
       <canvas id="main-chart"></canvas>
     </div>
+    <details class="chart-legend-details">
+      <summary class="chart-legend-summary">
+        <strong>Box:</strong> 25th–75th percentile &nbsp;·&nbsp;
+        <strong>Center line:</strong> median &nbsp;·&nbsp;
+        <strong>Whiskers:</strong> most extreme value still within 1.5× IQR (box height) of the box &nbsp;·&nbsp;
+        <strong>Dots beyond whiskers:</strong> outliers &nbsp;·&nbsp;
+        <strong>n =</strong> <span id="legend-n-text">number of locations</span>
+        <span class="chart-legend-more">ⓘ more</span><br>
+        <span id="legend-dots-note" style="display:none"></span>
+      </summary>
+      <div class="chart-legend-expanded">
+        <button class="chart-legend-close" onclick="this.closest('details').open=false" title="Close">✕</button>
+        <p><strong>CO₂ as an air quality indicator</strong><br>
+          Elevated indoor CO₂ is a reliable proxy for poor ventilation and the build-up of exhaled air.* For every 400 ppm above the outdoor baseline (~420 ppm), roughly 1% of the room air consists of air previously exhaled by occupants. Most recent scientific recommendations suggest keeping indoor CO₂ below 800 ppm. Because CO₂ rises with occupancy and falls when fresh air is supplied, it captures how well a space is ventilated relative to how many people are using it.<br>
+          <em>* In rare cases, other CO₂ sources within a building (e.g. gas appliances or other combustion processes) can contribute to elevated readings and affect results.</em></p>
+        <p><strong>Median</strong><br>
+          The median is the middle value when all measurements are sorted from lowest to highest — half the values fall below it and half above. It is more representative than the arithmetic mean for CO₂ data, which is often skewed by occasional very high readings.</p>
+        <p><strong>Percentiles and the box (IQR)</strong><br>
+          The 25th percentile (bottom of the box) means 25% of measurements were below that level; the 75th percentile (top of the box) means 75% were below it. The box therefore spans the middle 50% of all values — the difference between these two percentile values is called the interquartile range (IQR) and shows where the middle half of locations sit.</p>
+        <p><strong>Whiskers</strong><br>
+          The lines extending above and below the box each reach the most extreme actual data point that is still within 1.5× the IQR from the box edge — so the whisker tip is always a real measurement, not a calculated boundary. They show the range of values that are spread out but not extreme enough to be considered outliers.</p>
+        <p><strong>Outliers</strong><br>
+          Any individual measurement that falls beyond the whiskers is plotted as a separate dot. These are rare readings that differ vastly from the rest of the distribution.</p>
+        <p><strong>n = number of locations (or visits)</strong><br>
+          In most split modes, each data point represents one distinct physical location (identified by its OpenStreetMap element). Multiple visits to the same place are averaged into a single value, so n reflects how many different locations contributed — not how many individual measurement sessions were recorded. The exception is <em>Split by: Single Locations</em>, where each bar is already one location and n counts the individual visit averages that make up its box.</p>
+      </div>
+    </details>
   </section>
 
   <!-- Comparison mode -->

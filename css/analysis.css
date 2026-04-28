@@ -501,6 +501,73 @@ input[type="text"] {
 
 /* ── No-data message ─────────────────────────────────── */
 
+.chart-legend-details {
+  margin: 8px 4px 0;
+}
+
+.chart-legend-summary {
+  font-size: 0.75rem;
+  color: #9ca3af;
+  line-height: 1.6;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+}
+
+.chart-legend-summary::-webkit-details-marker { display: none; }
+
+.chart-legend-summary strong {
+  color: #6b7280;
+}
+
+.chart-legend-more {
+  margin-left: 6px;
+  color: #6b7280;
+  font-size: 0.72rem;
+  border-bottom: 1px dashed #9ca3af;
+}
+
+.chart-legend-details[open] .chart-legend-more {
+  display: none;
+}
+
+.chart-legend-close {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  background: none;
+  border: none;
+  font-size: 0.85rem;
+  color: #9ca3af;
+  cursor: pointer;
+  line-height: 1;
+  padding: 2px 4px;
+}
+
+.chart-legend-close:hover {
+  color: #374151;
+}
+
+.chart-legend-expanded {
+  position: relative;
+  margin-top: 10px;
+  padding: 12px 14px;
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  color: #374151;
+  line-height: 1.65;
+}
+
+.chart-legend-expanded p {
+  margin: 0 0 10px;
+}
+
+.chart-legend-expanded p:last-child {
+  margin-bottom: 0;
+}
+
 .no-data-msg {
   text-align: center;
   padding: 40px;

@@ -117,6 +117,8 @@ function aggregateByLocation(records) {
     if (!map.has(key)) {
       map.set(key, {
         key,
+        nwrtype: r.nwrtype,
+        nwrID: r.nwrID,
         name: r.name || key,
         brand: r.brand || '',
         country: r.countryName,
@@ -154,7 +156,13 @@ function buildGroups(records, splitBy) {
   if (splitBy === 'location') {
     const locs = aggregateByLocation(records);
     return [...locs.values()]
-      .map(l => ({ label: l.name, values: l.visits, count: l.visits.length, visitCount: l.visits.length }))
+      .map(l => ({
+        label: l.name,
+        values: l.visits,
+        count: l.visits.length,
+        visitCount: l.visits.length,
+        meta: { osmId: `${l.nwrtype}/${l.nwrID}`, country: l.country, locType: l.locType, brand: l.brand }
+      }))
       .filter(g => g.values.length > 0);
   }
 
@@ -377,7 +385,7 @@ function renderMainChart(groups) {
         meanBorderColor:     'rgba(0,0,0,0)'
       }]
     },
-    options: buildChartOptions(false, state.pointMode === 'none' ? getWhiskerMax(groups) : getDataMax(groups)),
+    options: buildChartOptions(false, state.pointMode === 'none' ? getWhiskerMax(groups) : getDataMax(groups), state.splitBy === 'location' ? groups.map(g => g.meta || null) : null),
     plugins: [medianLabelPlugin]
   });
 }
@@ -430,7 +438,7 @@ function renderComparisonChart(slotData) {
   });
 }
 
-function buildChartOptions(multilineXLabels = false, dataMax = null) {
+function buildChartOptions(multilineXLabels = false, dataMax = null, locMeta = null) {
   const yScale = { title: { display: true, text: 'CO₂ (ppm)', font: { size: 12 } }, ticks: { font: { size: 11 } } };
   yScale.min = 400;
   if (dataMax != null) yScale.max = Math.ceil(dataMax / 100) * 100;
@@ -444,7 +452,18 @@ function buildChartOptions(multilineXLabels = false, dataMax = null) {
       },
       tooltip: {
         callbacks: {
-          title: (items) => items[0]?.label || '',
+          title: (items) => {
+            const label = items[0]?.label || '';
+            if (!locMeta) return label;
+            const m = locMeta[items[0]?.dataIndex];
+            if (!m) return label;
+            const lines = [label];
+            if (m.osmId)   lines.push(`OSM: ${m.osmId}`);
+            if (m.country) lines.push(`Country: ${m.country}`);
+            if (m.locType) lines.push(`Type: ${LOC_TYPE_LABELS[m.locType] || m.locType}`);
+            if (m.brand)   lines.push(`Brand: ${m.brand}`);
+            return lines;
+          },
           label: (ctx) => {
             // ctx.raw is the original array we passed; compute stats from it
             const raw = ctx.raw;
@@ -1852,10 +1871,16 @@ function wireEvents() {
     }
   });
 
+  function updateLegendNText() {
+    const el = document.getElementById('legend-n-text');
+    if (el) el.textContent = state.splitBy === 'location' ? 'number of visits to that location' : 'number of locations';
+  }
+
   document.querySelectorAll('input[name="split"]').forEach(radio => {
     radio.addEventListener('change', e => {
       state.splitBy = e.target.value;
       document.getElementById('time-period-wrap').style.display = state.splitBy === 'time' ? 'flex' : 'none';
+      updateLegendNText();
       update();
     });
   });
@@ -1890,10 +1915,25 @@ function wireEvents() {
     if (n >= 1) { state.minMeasPerLoc = n; update(); }
   });
 
+  function updateDotsNote() {
+    const el = document.getElementById('legend-dots-note');
+    if (!el) return;
+    if (state.pointMode === 'all') {
+      el.textContent = 'Individual dots: each dot is one location\'s average CO₂, positioned on the y-axis at its value and scattered horizontally within the bar for readability. Dots beyond the whiskers are outliers and appear centered above or below the box.';
+      el.style.display = '';
+    } else if (state.pointMode === 'outliers') {
+      el.textContent = 'Outlier dots: individual location averages that fall outside the whiskers, shown at their value on the y-axis.';
+      el.style.display = '';
+    } else {
+      el.style.display = 'none';
+    }
+  }
+
   const POINT_MODE_SEL = 'input[name="point-mode"], input[name="point-mode-cmp"]';
   function applyPointMode(val) {
     state.pointMode = val;
     document.querySelectorAll(POINT_MODE_SEL).forEach(r => { r.checked = r.value === val; });
+    updateDotsNote();
     update();
     if (slots.length > 0) updateComparisonChart();
   }
@@ -1925,6 +1965,8 @@ function wireEvents() {
 
   document.getElementById('add-slot-btn').addEventListener('click', addSlot);
   document.getElementById('duplicate-slot-btn').addEventListener('click', duplicateLastSlot);
+
+  updateDotsNote();
 }
 
 // ─── Init ────────────────────────────────────────────────────────────────────

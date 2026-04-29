@@ -2062,16 +2062,18 @@ async function generateComparisonSocialCard(preset = 'landscape') {
 
 function generateMainAltText() {
   if (!mainChart) return '';
-  const fmtV = v => Math.round(v).toLocaleString('en');
+  const isReb = state.yAxisMode === 'rebreathed';
+  const fmtV = isReb ? v => v.toFixed(1) + '%' : v => Math.round(v).toLocaleString('en') + ' ppm';
   const fmtTs = ts => new Date(ts).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
   const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  const metric = isReb ? 'rebreathed air (%)' : 'CO₂ levels (ppm)';
   const IQR_NOTE = 'The IQR (interquartile range) spans from Q1 (25th percentile) to Q3 (75th percentile), covering the middle 50% of values; a smaller IQR indicates a more consistent distribution.';
 
   const descGroup = (s, label) => {
     const outlierPart = s.outliers.length > 0
-      ? `; ${s.outliers.length} outlier${s.outliers.length > 1 ? 's' : ''}, highest ${fmtV(s.max)} ppm`
+      ? `; ${s.outliers.length} outlier${s.outliers.length > 1 ? 's' : ''}, highest ${fmtV(s.max)}`
       : '; no outliers';
-    return `${label} (n=${fmtV(s.n)}): median ${fmtV(s.median)} ppm, Q1 ${fmtV(s.q1)} ppm, Q3 ${fmtV(s.q3)} ppm, IQR ${fmtV(s.iqr)} ppm; whiskers ${fmtV(s.lw)}–${fmtV(s.uw)} ppm${outlierPart}.`;
+    return `${label} (n=${Math.round(s.n).toLocaleString('en')}): median ${fmtV(s.median)}, Q1 ${fmtV(s.q1)}, Q3 ${fmtV(s.q3)}, IQR ${fmtV(s.iqr)}; whiskers ${fmtV(s.lw)}–${fmtV(s.uw)}${outlierPart}.`;
   };
 
   let titleContext = '';
@@ -2099,7 +2101,7 @@ function generateMainAltText() {
     const s = calcBoxStats(data[0]);
     if (!s) return '';
     return [
-      `Box plot of indoor CO₂ levels (ppm)${titleContext}.`,
+      `Box plot of indoor ${metric}${titleContext}.`,
       `Filters: ${filterStr}.`,
       statsLine ? `Data: ${statsLine}.` : '',
       descGroup(s, 'All data'),
@@ -2116,7 +2118,7 @@ function generateMainAltText() {
 
   const dim = splitLabel[state.splitBy] || '';
   const header = [
-    `Box plot comparing indoor CO₂ levels (ppm) ${dim}${titleContext} — ${groups.length} group${groups.length > 1 ? 's' : ''}.`,
+    `Box plot comparing indoor ${metric} ${dim}${titleContext} — ${groups.length} group${groups.length > 1 ? 's' : ''}.`,
     `Filters: ${filterStr}.`,
     statsLine ? `Data: ${statsLine}.` : '',
   ].filter(Boolean).join(' ');
@@ -2137,12 +2139,12 @@ function generateMainAltText() {
   const middleUW = Math.max(...middle.map(g => g.s.uw));
   const middleOutliers = middle.reduce((sum, g) => sum + g.s.outliers.length, 0);
   const middleNames = middle.map(g => g.label).join(', ');
-  const middleSummary = `The ${middle.length} middle group${middle.length > 1 ? 's' : ''} — ${middleNames} — have medians between ${fmtV(middleMedianMin)} and ${fmtV(middleMedianMax)} ppm; whiskers ${fmtV(middleLW)}–${fmtV(middleUW)} ppm${middleOutliers > 0 ? `; ${middleOutliers} outliers combined` : ''}.`;
+  const middleSummary = `The ${middle.length} middle group${middle.length > 1 ? 's' : ''} — ${middleNames} — have medians between ${fmtV(middleMedianMin)} and ${fmtV(middleMedianMax)}; whiskers ${fmtV(middleLW)}–${fmtV(middleUW)}${middleOutliers > 0 ? `; ${middleOutliers} outliers combined` : ''}.`;
 
   return [
     header,
-    'Groups with lowest CO₂:',  ...best3.map(g => descGroup(g.s, g.label)),
-    'Groups with highest CO₂:', ...worst3.map(g => descGroup(g.s, g.label)),
+    isReb ? 'Groups with lowest rebreathed air:' : 'Groups with lowest CO₂:', ...best3.map(g => descGroup(g.s, g.label)),
+    isReb ? 'Groups with highest rebreathed air:' : 'Groups with highest CO₂:', ...worst3.map(g => descGroup(g.s, g.label)),
     middleSummary,
     IQR_NOTE,
   ].join(' ');
@@ -2150,7 +2152,9 @@ function generateMainAltText() {
 
 function generateComparisonAltText() {
   if (!comparisonChart) return '';
-  const fmtV = v => Math.round(v).toLocaleString('en');
+  const isReb = state.yAxisMode === 'rebreathed';
+  const fmtV = isReb ? v => v.toFixed(1) + '%' : v => Math.round(v).toLocaleString('en') + ' ppm';
+  const metric = isReb ? 'rebreathed air (%)' : 'CO₂ levels (ppm)';
   const IQR_NOTE = 'The IQR (interquartile range) spans from Q1 (25th percentile) to Q3 (75th percentile), covering the middle 50% of values; a smaller IQR indicates a more consistent distribution.';
   const data = comparisonChart.data.datasets[0]?.data || [];
   const labels = comparisonChart.data.labels || [];
@@ -2159,13 +2163,13 @@ function generateComparisonAltText() {
     if (!s) return null;
     const label = labels[i] || `Group ${i + 1}`;
     const outlierPart = s.outliers.length > 0
-      ? `; ${s.outliers.length} outlier${s.outliers.length > 1 ? 's' : ''}, highest ${fmtV(s.max)} ppm`
+      ? `; ${s.outliers.length} outlier${s.outliers.length > 1 ? 's' : ''}, highest ${fmtV(s.max)}`
       : '; no outliers';
-    return `”${label}” (n=${fmtV(s.n)}): median ${fmtV(s.median)} ppm, Q1 ${fmtV(s.q1)} ppm, Q3 ${fmtV(s.q3)} ppm, IQR ${fmtV(s.iqr)} ppm; whiskers ${fmtV(s.lw)}–${fmtV(s.uw)} ppm${outlierPart}.`;
+    return `”${label}” (n=${Math.round(s.n).toLocaleString('en')}): median ${fmtV(s.median)}, Q1 ${fmtV(s.q1)}, Q3 ${fmtV(s.q3)}, IQR ${fmtV(s.iqr)}; whiskers ${fmtV(s.lw)}–${fmtV(s.uw)}${outlierPart}.`;
   }).filter(Boolean);
   if (!parts.length) return '';
   const matchNote = state.matchLocations ? ' Only locations with measurements in all groups are included (matched locations).' : '';
-  return `Side-by-side box plot comparing indoor CO₂ levels (ppm) across ${parts.length} filter set${parts.length > 1 ? 's' : ''}.${matchNote} ${parts.join(' ')} ${IQR_NOTE}`;
+  return `Side-by-side box plot comparing indoor ${metric} across ${parts.length} filter set${parts.length > 1 ? 's' : ''}.${matchNote} ${parts.join(' ')} ${IQR_NOTE}`;
 }
 
 function showExportModal(canvas, altText = '', generateFn = null) {

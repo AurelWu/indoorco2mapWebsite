@@ -1841,13 +1841,31 @@ async function renderExportComparisonChartImage(W, H) {
       plugins: { legend: { display: false }, title: { display: false }, tooltip: { enabled: false }, medianLabels: { fontSize: FONT } },
       scales: {
         y: yScale,
-        x: { ticks: { font: { size: FONT }, maxRotation: 0, minRotation: 0,
-          callback: function(val) {
-            const lbl = this.getLabelForValue(val);
-            if (!lbl) return '';
-            return lbl.includes(' · ') ? lbl.split(' · ') : lbl;
+        x: {
+          afterFit: axis => { axis.height = Math.max(axis.height, FONT * 4 + 16); },
+          ticks: { font: { size: FONT }, maxRotation: 0, minRotation: 0,
+            callback: function(val) {
+              const lbl = this.getLabelForValue(val);
+              if (!lbl) return '';
+              const nSlots = comparisonChart.data.labels?.length || 1;
+              const maxChars = Math.max(14, Math.floor(W / nSlots / (FONT * 0.62)));
+              const parts = lbl.includes(' · ') ? lbl.split(' · ') : [lbl];
+              return parts.flatMap(p => {
+                if (p.length <= maxChars) return [p];
+                const words = p.split(' ');
+                const lines = [];
+                let line = '';
+                for (const w of words) {
+                  const test = line ? line + ' ' + w : w;
+                  if (test.length > maxChars && line) { lines.push(line); line = w; }
+                  else line = test;
+                }
+                if (line) lines.push(line);
+                return lines;
+              });
+            }
           }
-        }}
+        }
       }
     },
     plugins: [medianLabelPlugin]
@@ -1962,6 +1980,13 @@ async function generateComparisonSocialCard(preset = 'landscape') {
   ctx.font = `${statsFont}px "Titillium Web", system-ui, sans-serif`;
   ctx.fillStyle = '#9ca3af';
   ctx.fillText(statsLine, padX, HEADER_H + 16 + 46);
+
+  if (state.matchLocations) {
+    const noteFont = Math.max(11, Math.round(15 * sc));
+    ctx.font = `${noteFont}px "Titillium Web", system-ui, sans-serif`;
+    ctx.fillStyle = '#6b7280';
+    ctx.fillText('Only locations present in all groups are included.', padX, HEADER_H + 16 + 46 + statsFont + 8);
+  }
 
   // Chart
   const chartDataUrl = await renderExportComparisonChartImage(W, chartDispH);
@@ -2085,7 +2110,8 @@ function generateComparisonAltText() {
     return `”${label}” (n=${fmtV(s.n)}): median ${fmtV(s.median)} ppm, Q1 ${fmtV(s.q1)} ppm, Q3 ${fmtV(s.q3)} ppm, IQR ${fmtV(s.iqr)} ppm; whiskers ${fmtV(s.lw)}–${fmtV(s.uw)} ppm${outlierPart}.`;
   }).filter(Boolean);
   if (!parts.length) return '';
-  return `Side-by-side box plot comparing indoor CO₂ levels (ppm) across ${parts.length} filter set${parts.length > 1 ? 's' : ''}. ${parts.join(' ')} ${IQR_NOTE}`;
+  const matchNote = state.matchLocations ? ' Only locations with measurements in all groups are included (matched locations).' : '';
+  return `Side-by-side box plot comparing indoor CO₂ levels (ppm) across ${parts.length} filter set${parts.length > 1 ? 's' : ''}.${matchNote} ${parts.join(' ')} ${IQR_NOTE}`;
 }
 
 function showExportModal(canvas, altText = '', generateFn = null) {

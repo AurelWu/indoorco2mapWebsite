@@ -2486,6 +2486,8 @@ async function init() {
       initTimeFilters();
       wireEvents();
       update();
+      addSlot();
+      addSlot();
 
     } catch (err) {
       console.error(err);

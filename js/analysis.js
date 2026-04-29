@@ -553,7 +553,7 @@ function buildChartOptions(multilineXLabels = false, dataMax = null, locMeta = n
             } else if (raw && typeof raw.median === 'number') {
               // pre-computed stats object (passed as {min,q1,median,q3,max})
               const fmt = isReb
-                ? v => v != null ? toRebreathed(v).toFixed(1) + ' %' : '—'
+                ? v => v != null ? v.toFixed(1) + ' %' : '—'
                 : v => v != null ? Math.round(v) + ' ppm' : '—';
               return [
                 `Median:    ${fmt(raw.median)}`,
@@ -578,7 +578,7 @@ function buildChartOptions(multilineXLabels = false, dataMax = null, locMeta = n
             const mean = values.reduce((s, v) => s + v, 0) / n;
 
             const fmtV = isReb
-              ? v => toRebreathed(v).toFixed(1) + ' %'
+              ? v => v.toFixed(1) + ' %'
               : v => Math.round(v) + ' ppm';
             return [
               `Median:    ${fmtV(pct(50))}`,

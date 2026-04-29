@@ -4,6 +4,10 @@ const DATA_URL = 'https://www.indoorco2map.com/chartdata/IndoorCO2MapData.json';
 
 const SLOT_COLORS = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6'];
 
+const CO2_OUTDOOR = 420;
+const CO2_EXHALED = 38000;
+const toRebreathed = ppm => Math.max(0, (ppm - CO2_OUTDOOR) / (CO2_EXHALED - CO2_OUTDOOR) * 100);
+
 // ─── State ──────────────────────────────────────────────────────────────────
 
 let allRecords = [];
@@ -36,7 +40,8 @@ const state = {
   hours: null,     // null = all; Set of hours (0-23) otherwise
   months: null,    // null = all; Set of months (0=Jan…11=Dec) otherwise
   weekdays: null,  // null = all; Set of weekdays (0=Sun…6=Sat) otherwise
-  localTime: true  // use location's local timezone for hour/weekday/month
+  localTime: true,  // use location's local timezone for hour/weekday/month
+  yAxisMode: 'co2'  // 'co2' | 'rebreathed' | 'both'
 };
 
 // ─── Local timezone helpers ──────────────────────────────────────────────────
@@ -381,7 +386,9 @@ const medianLabelPlugin = {
         const n = sorted.length;
         const median = n % 2 === 0 ? (sorted[n / 2 - 1] + sorted[n / 2]) / 2 : sorted[Math.floor(n / 2)];
         const yPx = scales.y.getPixelForValue(median);
-        const text = String(Math.round(median));
+        const text = state.yAxisMode === 'rebreathed'
+          ? median.toFixed(1) + '%'
+          : String(Math.round(median));
         ctx.save();
         ctx.font = `bold ${fontSize}px sans-serif`;
         ctx.textAlign = 'center';
@@ -424,13 +431,17 @@ function renderMainChart(groups) {
   const itemRadius    = state.pointMode === 'all' ? 3 : 0;
   const outlierRadius = state.pointMode !== 'none' ? 4 : 0;
 
+  const chartVals = state.yAxisMode === 'rebreathed'
+    ? groups.map(g => g.values.map(toRebreathed))
+    : groups.map(g => g.values);
+
   mainChart = new Chart(canvas, {
     type: 'boxplot',
     data: {
       labels: groups.map(g => `${g.label} (n=${g.count})`),
       datasets: [{
-        label: 'CO₂ ppm',
-        data: groups.map(g => g.values),
+        label: state.yAxisMode === 'rebreathed' ? 'Rebreathed air %' : 'CO₂ ppm',
+        data: chartVals,
         backgroundColor: 'rgba(59,130,246,0.25)',
         borderColor: 'rgba(59,130,246,0.85)',
         borderWidth: 1.5,
@@ -472,13 +483,17 @@ function renderComparisonChart(slotData) {
   const itemRadius    = state.pointMode === 'all' ? 3 : 0;
   const outlierRadius = state.pointMode !== 'none' ? 4 : 0;
 
+  const cmpVals = state.yAxisMode === 'rebreathed'
+    ? slotData.map(s => s.values.map(toRebreathed))
+    : slotData.map(s => s.values);
+
   comparisonChart = new Chart(canvas, {
     type: 'boxplot',
     data: {
       labels: slotData.map(s => s.label + (s.values.length ? ` (n=${s.count})` : ' (no data)')),
       datasets: [{
         label: 'Comparison',
-        data: slotData.map(s => s.values),
+        data: cmpVals,
         backgroundColor: slotData.map(s => s.color + '40'),
         borderColor: slotData.map(s => s.color),
         borderWidth: 1.5,
@@ -498,9 +513,13 @@ function renderComparisonChart(slotData) {
 }
 
 function buildChartOptions(multilineXLabels = false, dataMax = null, locMeta = null) {
-  const yScale = { title: { display: true, text: 'CO₂ (ppm)', font: { size: 12 } }, ticks: { font: { size: 11 } } };
-  yScale.min = 400;
-  if (dataMax != null) yScale.max = Math.ceil(dataMax / 100) * 100;
+  const isReb = state.yAxisMode === 'rebreathed';
+  const isBoth = state.yAxisMode === 'both';
+  const yTitle = isReb ? 'Rebreathed air (%)' : 'CO₂ (ppm)';
+  const yScale = { title: { display: true, text: yTitle, font: { size: 12 } }, ticks: { font: { size: 11 } } };
+  yScale.min = isReb ? 0 : 400;
+  if (dataMax != null) yScale.max = isReb ? Math.ceil(toRebreathed(dataMax)) : Math.ceil(dataMax / 100) * 100;
+  if (isReb) yScale.ticks.callback = v => v.toFixed(1) + '%';
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -533,10 +552,12 @@ function buildChartOptions(multilineXLabels = false, dataMax = null, locMeta = n
               values = raw.items;
             } else if (raw && typeof raw.median === 'number') {
               // pre-computed stats object (passed as {min,q1,median,q3,max})
-              const fmt = v => v != null ? Math.round(v) + ' ppm' : '—';
+              const fmt = isReb
+                ? v => v != null ? toRebreathed(v).toFixed(1) + ' %' : '—'
+                : v => v != null ? Math.round(v) + ' ppm' : '—';
               return [
                 `Median:    ${fmt(raw.median)}`,
-                `Mean:      ${raw.mean != null ? Math.round(raw.mean) + ' ppm' : '—'}`,
+                `Mean:      ${raw.mean != null ? fmt(raw.mean) : '—'}`,
                 `Q1 (25%):  ${fmt(raw.q1)}`,
                 `Q3 (75%):  ${fmt(raw.q3)}`,
                 `Min:       ${fmt(raw.min)}`,
@@ -556,13 +577,16 @@ function buildChartOptions(multilineXLabels = false, dataMax = null, locMeta = n
             };
             const mean = values.reduce((s, v) => s + v, 0) / n;
 
+            const fmtV = isReb
+              ? v => toRebreathed(v).toFixed(1) + ' %'
+              : v => Math.round(v) + ' ppm';
             return [
-              `Median:    ${Math.round(pct(50))} ppm`,
-              `Mean:      ${Math.round(mean)} ppm`,
-              `Q1 (25%):  ${Math.round(pct(25))} ppm`,
-              `Q3 (75%):  ${Math.round(pct(75))} ppm`,
-              `Min:       ${Math.round(sorted[0])} ppm`,
-              `Max:       ${Math.round(sorted[n - 1])} ppm`,
+              `Median:    ${fmtV(pct(50))}`,
+              `Mean:      ${fmtV(mean)}`,
+              `Q1 (25%):  ${fmtV(pct(25))}`,
+              `Q3 (75%):  ${fmtV(pct(75))}`,
+              `Min:       ${fmtV(sorted[0])}`,
+              `Max:       ${fmtV(sorted[n - 1])}`,
               `n:         ${n}`
             ];
           }
@@ -571,6 +595,14 @@ function buildChartOptions(multilineXLabels = false, dataMax = null, locMeta = n
     },
     scales: {
       y: yScale,
+      ...(isBoth ? { y2: {
+        position: 'right',
+        min: yScale.min,
+        max: yScale.max,
+        grid: { drawOnChartArea: false },
+        title: { display: true, text: 'Rebreathed air (%)', font: { size: 12 } },
+        ticks: { font: { size: 11 }, callback: v => toRebreathed(v).toFixed(1) + '%' }
+      }} : {}),
       x: {
         ticks: {
           maxRotation: multilineXLabels ? 0 : 40,
@@ -1603,9 +1635,11 @@ async function renderExportChartImage(W, H) {
   document.body.appendChild(cv);
 
   const FONT = Math.max(12, Math.round(18 * W / 1200));
+  const isRebExp = state.yAxisMode === 'rebreathed';
+  const isBothExp = state.yAxisMode === 'both';
   const yScale = {
-    title: { display: true, text: 'CO₂ (ppm)', font: { size: FONT } },
-    ticks: { font: { size: FONT } },
+    title: { display: true, text: isRebExp ? 'Rebreathed air (%)' : 'CO₂ (ppm)', font: { size: FONT } },
+    ticks: { font: { size: FONT }, ...(isRebExp ? { callback: v => v.toFixed(1) + '%' } : {}) },
     min: yMin
   };
   if (yMax != null) yScale.max = yMax;
@@ -1624,6 +1658,13 @@ async function renderExportChartImage(W, H) {
       plugins: { legend: { display: false }, title: { display: false }, tooltip: { enabled: false }, medianLabels: { fontSize: FONT } },
       scales: {
         y: yScale,
+        ...(isBothExp ? { y2: {
+          position: 'right',
+          min: yScale.min, max: yScale.max,
+          grid: { drawOnChartArea: false },
+          title: { display: true, text: 'Rebreathed air (%)', font: { size: FONT } },
+          ticks: { font: { size: FONT }, callback: v => toRebreathed(v).toFixed(1) + '%' }
+        }} : {}),
         x: {
           ticks: {
             font: { size: FONT },
@@ -1830,7 +1871,13 @@ async function renderExportComparisonChartImage(W, H) {
   document.body.appendChild(cv);
 
   const FONT = Math.max(12, Math.round(18 * W / 1200));
-  const yScale = { title: { display: true, text: 'CO₂ (ppm)', font: { size: FONT } }, ticks: { font: { size: FONT } }, min: yMin };
+  const isRebCmp = state.yAxisMode === 'rebreathed';
+  const isBothCmp = state.yAxisMode === 'both';
+  const yScale = {
+    title: { display: true, text: isRebCmp ? 'Rebreathed air (%)' : 'CO₂ (ppm)', font: { size: FONT } },
+    ticks: { font: { size: FONT }, ...(isRebCmp ? { callback: v => v.toFixed(1) + '%' } : {}) },
+    min: yMin
+  };
   if (yMax != null) yScale.max = yMax;
 
   const chart = new Chart(cv, {
@@ -1841,6 +1888,13 @@ async function renderExportComparisonChartImage(W, H) {
       plugins: { legend: { display: false }, title: { display: false }, tooltip: { enabled: false }, medianLabels: { fontSize: FONT } },
       scales: {
         y: yScale,
+        ...(isBothCmp ? { y2: {
+          position: 'right',
+          min: yScale.min, max: yScale.max,
+          grid: { drawOnChartArea: false },
+          title: { display: true, text: 'Rebreathed air (%)', font: { size: FONT } },
+          ticks: { font: { size: FONT }, callback: v => toRebreathed(v).toFixed(1) + '%' }
+        }} : {}),
         x: {
           afterFit: axis => { axis.height = Math.max(axis.height, FONT * 4 + 16); },
           ticks: { font: { size: FONT }, maxRotation: 0, minRotation: 0,
@@ -2286,6 +2340,14 @@ function wireEvents() {
       document.getElementById('time-period-wrap').style.display = state.splitBy === 'time' ? 'flex' : 'none';
       updateLegendNText();
       update();
+    });
+  });
+
+  document.querySelectorAll('input[name="yaxis"]').forEach(radio => {
+    radio.addEventListener('change', e => {
+      state.yAxisMode = e.target.value;
+      update();
+      if (slots.length > 0) updateComparisonChart();
     });
   });
 

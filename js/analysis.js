@@ -23,9 +23,9 @@ const state = {
   brandExclude: false,
   dateMin: 0,
   dateMax: Infinity,
-  splitBy: 'none',
+  splitBy: 'type',
   timePeriod: 'month',
-  limitN: 20,
+  limitN: 10,
   limitType: 'count',      // criterion for selecting which N make the cut
   displayOrder: 'lowest',  // how to order those N in the chart
   minEntries: 1,           // hide categories with fewer than this many locations
@@ -33,10 +33,30 @@ const state = {
   pointMode: 'all',  // 'none' | 'outliers' | 'all'
   showMedian: false,
   matchLocations: false,
-  hours: null,     // null = all; Set of UTC hours (0-23) otherwise
-  months: null,    // null = all; Set of UTC months (0=Jan…11=Dec) otherwise
-  weekdays: null   // null = all; Set of UTC weekdays (0=Sun…6=Sat) otherwise
+  hours: null,     // null = all; Set of hours (0-23) otherwise
+  months: null,    // null = all; Set of months (0=Jan…11=Dec) otherwise
+  weekdays: null,  // null = all; Set of weekdays (0=Sun…6=Sat) otherwise
+  localTime: true  // use location's local timezone for hour/weekday/month
 };
+
+// ─── Local timezone helpers ──────────────────────────────────────────────────
+
+const _tzFmtCache = new Map();
+function getLocalDateParts(ts, tz) {
+  let fmt = _tzFmtCache.get(tz);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat('en', {
+      timeZone: tz, year: 'numeric', month: '2-digit',
+      day: '2-digit', hour: '2-digit', hour12: false
+    });
+    _tzFmtCache.set(tz, fmt);
+  }
+  const parts = fmt.formatToParts(new Date(ts));
+  const get = t => parseInt(parts.find(p => p.type === t).value);
+  const year = get('year'), month = get('month') - 1, day = get('day');
+  const hour = get('hour') % 24; // guard against rare '24' from some Intl impls
+  return { hour, day: new Date(year, month, day).getDay(), month };
+}
 
 // ─── Data loading ────────────────────────────────────────────────────────────
 
@@ -101,9 +121,10 @@ function filterRecords(records, opts = {}) {
       const rType = NWR_NORM[(r.nwrtype || '').toLowerCase()] || (r.nwrtype || '').toLowerCase();
       if (rType !== nwrType || String(r.nwrID) !== nwrId) return false;
     }
-    if (hours    && !hours.has(new Date(r._ts).getUTCHours()))   return false;
-    if (months   && !months.has(new Date(r._ts).getUTCMonth()))  return false;
-    if (weekdays && !weekdays.has(new Date(r._ts).getUTCDay()))  return false;
+    const lt = state.localTime;
+    if (hours    && !hours.has(   lt && r._localHour  != null ? r._localHour  : new Date(r._ts).getUTCHours()))  return false;
+    if (months   && !months.has(  lt && r._localMonth != null ? r._localMonth : new Date(r._ts).getUTCMonth()))  return false;
+    if (weekdays && !weekdays.has(lt && r._localDay   != null ? r._localDay   : new Date(r._ts).getUTCDay()))    return false;
     return true;
   });
 }
@@ -179,17 +200,20 @@ function buildGroups(records, splitBy) {
       hour4:        [0,1,2,3,4,5].map(i => ({ key: i, label: `${pad(i*4)}–${pad(i*4+3)}` })),
     };
 
-    function getKey(ts) {
-      const d = new Date(ts);
-      const utcDay = d.getUTCDay(); // 0=Sun…6=Sat
+    function getKey(r) {
+      const d = new Date(r._ts);
+      const lt = state.localTime;
+      const day   = lt && r._localDay   != null ? r._localDay   : d.getUTCDay();
+      const hour  = lt && r._localHour  != null ? r._localHour  : d.getUTCHours();
+      const month = lt && r._localMonth != null ? r._localMonth : d.getUTCMonth();
       switch (tp) {
-        case 'month':       return d.getUTCMonth();
-        case 'weekday':     return utcDay === 0 ? 6 : utcDay - 1; // 0=Mon…6=Sun
-        case 'weekday-2a':  return utcDay >= 1 && utcDay <= 5 ? 0 : (utcDay === 6 ? 1 : null);
-        case 'weekday-2b':  return utcDay >= 1 && utcDay <= 5 ? 0 : 1;
-        case 'weekday-2c':  return utcDay === 0 ? 1 : 0;
-        case 'hour':        return d.getUTCHours();
-        case 'hour4':       return Math.floor(d.getUTCHours() / 4);
+        case 'month':       return month;
+        case 'weekday':     return day === 0 ? 6 : day - 1; // 0=Mon…6=Sun
+        case 'weekday-2a':  return day >= 1 && day <= 5 ? 0 : (day === 6 ? 1 : null);
+        case 'weekday-2b':  return day >= 1 && day <= 5 ? 0 : 1;
+        case 'weekday-2c':  return day === 0 ? 1 : 0;
+        case 'hour':        return hour;
+        case 'hour4':       return Math.floor(hour / 4);
       }
       return null;
     }
@@ -209,7 +233,7 @@ function buildGroups(records, splitBy) {
 
     for (const r of timeRecords) {
       if (typeof r.co2readingsAvg !== 'number' || isNaN(r.co2readingsAvg)) continue;
-      const key = getKey(r._ts);
+      const key = getKey(r);
       if (key === null || !groups.has(key)) continue;
       const g = groups.get(key);
       g.values.push(r.co2readingsAvg);
@@ -1473,9 +1497,10 @@ function initTimeFilters() {
 function applyTimeFilter(records) {
   return records.filter(r => {
     if (r._ts < state.dateMin || r._ts > state.dateMax) return false;
-    if (state.hours    && !state.hours.has(new Date(r._ts).getUTCHours()))   return false;
-    if (state.months   && !state.months.has(new Date(r._ts).getUTCMonth()))  return false;
-    if (state.weekdays && !state.weekdays.has(new Date(r._ts).getUTCDay()))  return false;
+    const lt = state.localTime;
+    if (state.hours    && !state.hours.has(   lt && r._localHour  != null ? r._localHour  : new Date(r._ts).getUTCHours()))  return false;
+    if (state.months   && !state.months.has(  lt && r._localMonth != null ? r._localMonth : new Date(r._ts).getUTCMonth()))  return false;
+    if (state.weekdays && !state.weekdays.has(lt && r._localDay   != null ? r._localDay   : new Date(r._ts).getUTCDay()))    return false;
     return true;
   });
 }
@@ -1483,9 +1508,10 @@ function applyTimeFilter(records) {
 function applyTimeFilterForCounts(records) {
   return records.filter(r => {
     if (r._ts < state.dateMin || r._ts > state.dateMax) return false;
-    if (state.hours?.size    && !state.hours.has(new Date(r._ts).getUTCHours()))   return false;
-    if (state.months?.size   && !state.months.has(new Date(r._ts).getUTCMonth()))  return false;
-    if (state.weekdays?.size && !state.weekdays.has(new Date(r._ts).getUTCDay()))  return false;
+    const lt = state.localTime;
+    if (state.hours?.size    && !state.hours.has(   lt && r._localHour  != null ? r._localHour  : new Date(r._ts).getUTCHours()))  return false;
+    if (state.months?.size   && !state.months.has(  lt && r._localMonth != null ? r._localMonth : new Date(r._ts).getUTCMonth()))  return false;
+    if (state.weekdays?.size && !state.weekdays.has(lt && r._localDay   != null ? r._localDay   : new Date(r._ts).getUTCDay()))    return false;
     return true;
   });
 }
@@ -2188,6 +2214,15 @@ function showExportModal(canvas, altText = '', generateFn = null) {
 // ─── Event wiring ────────────────────────────────────────────────────────────
 
 function wireEvents() {
+  document.getElementById('local-time-toggle').addEventListener('change', e => {
+    state.localTime = e.target.checked;
+    const suffix = state.localTime ? 'local time' : 'UTC';
+    document.getElementById('hours-label-text').textContent = `Hours (${suffix})`;
+    document.getElementById('opt-hour').textContent  = `Hour (${suffix})`;
+    document.getElementById('opt-hour4').textContent = `4-Hour Periods (${suffix})`;
+    update();
+  });
+
   document.getElementById('export-social-btn').addEventListener('click', async () => {
     const btn = document.getElementById('export-social-btn');
     btn.disabled = true;
@@ -2329,11 +2364,25 @@ async function init() {
     try {
       const raw = await fetchData(DATA_URL);
 
-      // Pre-compute timestamp for each record
-      allRecords = raw.map(r => ({
-        ...r,
-        _ts: new Date(r.startOfMeasurement).getTime()
-      }));
+      // Pre-compute timestamp and local time parts for each record
+      allRecords = raw.map(r => {
+        const _ts = new Date(r.startOfMeasurement).getTime();
+        let _localHour = null, _localDay = null, _localMonth = null;
+        try {
+          let tz = null;
+          if (typeof tzlookup === 'function' && r.latitude != null && r.longitude != null) {
+            try { tz = tzlookup(r.latitude, r.longitude); } catch { }
+          }
+          if (!tz && typeof COUNTRY_TIMEZONES !== 'undefined') {
+            tz = COUNTRY_TIMEZONES[r.countryName] ?? null;
+          }
+          if (tz) {
+            const p = getLocalDateParts(_ts, tz);
+            _localHour = p.hour; _localDay = p.day; _localMonth = p.month;
+          }
+        } catch { /* unsupported timezone */ }
+        return { ...r, _ts, _localHour, _localDay, _localMonth };
+      });
 
       loading.style.display = 'none';
 

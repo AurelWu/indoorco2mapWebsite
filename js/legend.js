@@ -27,7 +27,9 @@ export function createLegend() {
     const legendContent = document.getElementById('legend-content');
     const isVisible = legendContent.style.display !== 'none';
     legendContent.style.display = isVisible ? 'none' : 'block';
-    toggleButton.textContent = isVisible ? 'Legend ▶' : '▼';
+    toggleButton.innerHTML = isVisible
+      ? '<i class="fas fa-chevron-right"></i> Legend'
+      : '<i class="fas fa-chevron-down"></i> Legend';
   });
 }
 

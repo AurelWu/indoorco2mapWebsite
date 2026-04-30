@@ -89,7 +89,7 @@
   </div>
 </div>
 <div id="legend">
-  <button id="legend-toggle">▼</button>
+  <button id="legend-toggle"><i class="fas fa-chevron-down"></i> Legend</button>
 
   <div id="iaqs-toggle">
       <label class="iaqs-label">
@@ -104,11 +104,11 @@
 
   <div id="legend-content"></div>
 </div><div id="filter-container">
-  <button id="filter-toggle">► Filters</button>
+  <button id="filter-toggle"><i class="fas fa-sliders-h"></i> Filters</button>
   <div id="filter-content">
 
     <!-- Histogram Toggle Button -->
-    <button id="toggleHistogram" title="Show/Hide Histogram">📊 Show Histogram</button>
+    <button id="toggleHistogram" title="Show/Hide Histogram"><i class="fas fa-chart-bar"></i> Show Histogram</button>
     <div class="date-range-container"> 
       <div class="date-range-row">
         <label for="dateFrom">From:</label>
@@ -240,7 +240,6 @@
   filterToggle.addEventListener("click", () => {
     const isVisible = window.getComputedStyle(filterContent).display !== "none";
     filterContent.style.display = isVisible ? "none" : "block";
-    filterToggle.textContent = isVisible ? "► Filters" : "▼";
   });
 
   /* When the user clicks on the button,

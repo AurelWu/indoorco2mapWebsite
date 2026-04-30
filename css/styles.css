@@ -111,8 +111,8 @@
 }
 
 .range-values {
-  font-size: 0.85em;
-  text-align: right;
+  font-size: 0.92em;
+  text-align: center;
   opacity: 0.8;
 }
 
@@ -221,24 +221,31 @@ html, body {
    =============================== */
 
 #legend {
-  background-color: #f9f9f9;
-  padding: 5px;
-  border-radius: 5px;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  background: #fff;
+  padding: 8px 10px;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.15);
   z-index: 9999;
   display: inline-block;
-  position: absolute;
-  bottom: 28px;
-  right: 20px;
+  position: fixed;
+  bottom: 20px;
+  right: 10px;
+  font-family: inherit;
+  font-size: 13px;
 }
 
 #legend-toggle {
-  background: #f9f9f9;
+  background: transparent;
   border: none;
-  font-weight: bold;
   cursor: pointer;
+  padding: 0;
+  color: #6b7280;
+  font-size: 12px;
+  display: block;
   margin-bottom: 4px;
+  transition: color 0.15s;
 }
+#legend-toggle:hover { color: #1d4ed8; }
 
 /* Optional header (only shown in IAQS mode) */
 .legend-header {
@@ -361,23 +368,30 @@ html, body {
   position: fixed;
   bottom: 20px;
   left: 10px;
-  background: rgba(255, 255, 255, 0.95);
-  border: 1px solid #ccc;
-  border-radius: 6px;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.15);
   z-index: 9999;
-  font-family: sans-serif;
-  font-size: 14px;
+  font-family: inherit;
+  font-size: 13px;
 }
 
 #filter-toggle {
   background: none;
   border: none;
   cursor: pointer;
-  font-size: 16px;
-  padding: 6px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+  padding: 8px 12px;
   width: 100%;
   text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: color 0.15s;
 }
+#filter-toggle:hover { color: #1d4ed8; }
 
 #filter-content > *:not(:last-child) {
   margin-bottom: 8px;
@@ -385,22 +399,28 @@ html, body {
 
 #filter-content {
   display: none;
+  padding: 0 12px 12px;
 }
 
 #toggleHistogram {
-  margin-bottom: 8px;
-  padding: 4px 8px;
-  font-size: 16px;
+  margin-bottom: 4px;
+  padding: 5px 8px;
+  font-size: 13px;
   cursor: pointer;
-  background-color: #f9f9f9;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+  background: transparent;
+  border: 1px solid rgba(0,0,0,0.12);
+  border-radius: 6px;
   width: 100%;
+  color: #374151;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  transition: background 0.15s, color 0.15s;
 }
-
-#toggleHistogram:hover, #toggleHistogram:active
- {
-  background-color: #1d8effff;
+#toggleHistogram:hover {
+  background: #eff6ff;
+  color: #1d4ed8;
+  border-color: transparent;
 }
 
 /* ===============================
@@ -460,23 +480,14 @@ html, body {
    =============================== */
 
 .date-range-container {
-  /* Removed fixed positioning since it's now inside a container */
   position: static;
-  bottom: auto;
-  left: auto;
-  z-index: auto;
-
-  background: rgba(255, 255, 255, 0.9);
-  padding: 4px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-  font-family: sans-serif;
-  font-size: 14px;
   display: flex;
   flex-direction: column;
   gap: 6px;
-  width: 100%; /* Fill container width */
+  width: 100%;
   box-sizing: border-box;
+  font-family: inherit;
+  font-size: 13px;
 }
 
 .date-range-row {

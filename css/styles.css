@@ -374,6 +374,8 @@ html, body {
   z-index: 9999;
   font-family: inherit;
   font-size: 13px;
+  max-width: calc(100vw - 20px);
+  box-sizing: border-box;
 }
 
 #filter-toggle {
@@ -400,6 +402,7 @@ html, body {
 #filter-content {
   display: none;
   padding: 0 12px 12px;
+  min-width: 220px;
 }
 
 #toggleHistogram {
@@ -589,6 +592,12 @@ html, body {
   box-shadow: 0 2px 12px rgba(0,0,0,0.15);
   z-index: 1000;
   font-family: inherit;
+}
+
+.popup-chart-wrap {
+  width: 100%;
+  height: 260px;
+  margin-bottom: 4px;
 }
 
 .popup-close-btn {

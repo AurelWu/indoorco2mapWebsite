@@ -108,7 +108,7 @@ showPopup(data) {
     const pageData = sortedMeasurements.slice(start, end);
 
     const canvasId = 'co2ChartCanvas';
-    const canvasHtml = `<canvas id="${canvasId}" width="370" height="285"></canvas>`;
+    const canvasHtml = `<div class="popup-chart-wrap"><canvas id="${canvasId}"></canvas></div>`;
 
     const hasPrev = currentPage > 0;
     const hasNext = end < sortedMeasurements.length;
@@ -159,7 +159,7 @@ showPopup(data) {
       };
 
       const chartOptions = {
-        responsive: false,
+        responsive: true,
         maintainAspectRatio: false,
         scales: {
           y: {

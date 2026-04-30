@@ -710,7 +710,8 @@ function updateSummary(filtered, groups) {
 
   el.innerHTML = '';
   const line1 = document.createElement('span');
-  line1.textContent = `${locCount.toLocaleString()} locations · ${visitCount.toLocaleString()} visits shown${catSuffix}`;
+  const outlierNote = state.pointMode === 'none' ? ' · outliers not shown' : '';
+  line1.textContent = `${locCount.toLocaleString()} locations · ${visitCount.toLocaleString()} visits shown${catSuffix}${outlierNote}`;
   el.appendChild(line1);
   if (parts.length) {
     el.appendChild(document.createElement('br'));
@@ -2097,11 +2098,13 @@ function generateMainAltText() {
   const data = mainChart.data.datasets[0]?.data || [];
   const labels = mainChart.data.labels || [];
 
+  const outlierNote = state.pointMode === 'none' ? ' Outlier dots are not shown on this chart.' : '';
+
   if (state.splitBy === 'none' && data.length === 1) {
     const s = calcBoxStats(data[0]);
     if (!s) return '';
     return [
-      `Box plot of indoor ${metric}${titleContext}.`,
+      `Box plot of indoor ${metric}${titleContext}.${outlierNote}`,
       `Filters: ${filterStr}.`,
       statsLine ? `Data: ${statsLine}.` : '',
       descGroup(s, 'All data'),
@@ -2117,8 +2120,9 @@ function generateMainAltText() {
   if (!groups.length) return '';
 
   const dim = splitLabel[state.splitBy] || '';
+  const outlierNote = state.pointMode === 'none' ? ' Outlier dots are not shown on this chart.' : '';
   const header = [
-    `Box plot comparing indoor ${metric} ${dim}${titleContext} — ${groups.length} group${groups.length > 1 ? 's' : ''}.`,
+    `Box plot comparing indoor ${metric} ${dim}${titleContext} — ${groups.length} group${groups.length > 1 ? 's' : ''}.${outlierNote}`,
     `Filters: ${filterStr}.`,
     statsLine ? `Data: ${statsLine}.` : '',
   ].filter(Boolean).join(' ');
@@ -2169,7 +2173,8 @@ function generateComparisonAltText() {
   }).filter(Boolean);
   if (!parts.length) return '';
   const matchNote = state.matchLocations ? ' Only locations with measurements in all groups are included (matched locations).' : '';
-  return `Side-by-side box plot comparing indoor ${metric} across ${parts.length} filter set${parts.length > 1 ? 's' : ''}.${matchNote} ${parts.join(' ')} ${IQR_NOTE}`;
+  const outlierNote = state.pointMode === 'none' ? ' Outlier dots are not shown on this chart.' : '';
+  return `Side-by-side box plot comparing indoor ${metric} across ${parts.length} filter set${parts.length > 1 ? 's' : ''}.${matchNote}${outlierNote} ${parts.join(' ')} ${IQR_NOTE}`;
 }
 
 function showExportModal(canvas, altText = '', generateFn = null) {

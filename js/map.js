@@ -100,7 +100,7 @@ showPopup(data) {
   let currentPage = 0;
 
   const sortedMeasurements = [...data.measurementData].sort((a, b) => b.startTime - a.startTime);
-  const title = `<strong>${data.nwrname}</strong> Ø: ${Math.round(data.ppmavg)} ppm CO₂`;
+  const title = `<div class="popup-title">${data.nwrname}<span class="popup-title-stat"> — Ø ${Math.round(data.ppmavg)} ppm CO₂</span></div>`;
 
   function renderPage() {
     const start = currentPage * pageSize;
@@ -114,15 +114,16 @@ showPopup(data) {
     const hasNext = end < sortedMeasurements.length;
 
     const paginationHtml = `
-      <div id="pagination-controls" style="margin-top: 10px;">
-        <button id="prevPageBtn" ${!hasPrev ? 'disabled' : ''}>Previous</button>
-        <button id="nextPageBtn" ${!hasNext ? 'disabled' : ''}>Next</button>
+      <div id="pagination-controls">
+        <button id="prevPageBtn" class="popup-nav-btn" ${!hasPrev ? 'disabled' : ''}><i class="fas fa-chevron-left"></i> Newer</button>
+        <button id="nextPageBtn" class="popup-nav-btn" ${!hasNext ? 'disabled' : ''}>Older <i class="fas fa-chevron-right"></i></button>
       </div>
     `;
 
     popup.innerHTML = `
+      <button class="popup-close-btn" id="popupCloseBtn">✕</button>
       <div class="popup-content">
-        ${title}<br>
+        ${title}
         ${canvasHtml}
       </div>
     `;
@@ -203,7 +204,7 @@ let activeTooltip = null;
 
 chartData.datasets.forEach((dataset, index) => {
   const legendItem = document.createElement('div');
-  legendItem.style.fontSize = '12px';
+  legendItem.style.fontSize = '13px';
   legendItem.style.marginBottom = '4px';
   legendItem.style.cursor = 'pointer';
   legendItem.style.display = 'flex';
@@ -211,9 +212,11 @@ chartData.datasets.forEach((dataset, index) => {
 
   const colorBox = document.createElement('span');
   colorBox.style.display = 'inline-block';
-  colorBox.style.width = '10px';
-  colorBox.style.height = '10px';
+  colorBox.style.width = '12px';
+  colorBox.style.height = '12px';
+  colorBox.style.borderRadius = '3px';
   colorBox.style.marginRight = '6px';
+  colorBox.style.flexShrink = '0';
   colorBox.style.backgroundColor = dataset.borderColor;
 
   const labelSpan = document.createElement('span');
@@ -235,12 +238,12 @@ const tooltipText = `
   const tooltip = document.createElement('div');
   tooltip.innerHTML = tooltipText;
   tooltip.style.position = 'absolute';
-  tooltip.style.background = '#f0f0f0';
-  tooltip.style.border = '1px solid #ccc';
-  tooltip.style.padding = '6px 10px';
+  tooltip.style.background = '#fff';
+  tooltip.style.border = '1px solid rgba(0,0,0,0.09)';
+  tooltip.style.padding = '8px 12px';
   tooltip.style.fontSize = '12px';
-  tooltip.style.borderRadius = '5px';
-  tooltip.style.boxShadow = '0 2px 6px rgba(0,0,0,0.2)';
+  tooltip.style.borderRadius = '10px';
+  tooltip.style.boxShadow = '0 4px 16px rgba(0,0,0,0.12)';
   tooltip.style.zIndex = '1000';
   tooltip.style.display = 'none';
 
@@ -292,6 +295,8 @@ document.addEventListener('click', (e) => {
       const popupContent = popup.querySelector('.popup-content');
       popupContent.appendChild(legendContainer);
       popupContent.insertAdjacentHTML('beforeend', paginationHtml);
+
+      document.getElementById('popupCloseBtn')?.addEventListener('click', () => popup.remove());
 
       document.getElementById('prevPageBtn')?.addEventListener('click', () => {
         if (currentPage > 0) {

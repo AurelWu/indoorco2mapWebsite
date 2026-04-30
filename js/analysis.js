@@ -646,6 +646,7 @@ function update() {
   updateLimitVisibility();
 
   if (slots.length > 0) updateComparisonChart();
+  scheduleURLUpdate();
 }
 
 function rangeStr(sortedVals, fmt) {
@@ -774,6 +775,7 @@ function updateComparisonChart() {
   });
 
   renderComparisonChart(slotData);
+  scheduleURLUpdate();
 }
 
 // ─── Dropdowns ───────────────────────────────────────────────────────────────
@@ -2025,7 +2027,8 @@ async function generateComparisonSocialCard(preset = 'landscape') {
 
   const fmtTsCmp = ts => new Date(ts).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
   const dateDescCmp = fmtTsCmp(Math.max(state.dateMin, globalDateMin)) + ' – ' + fmtTsCmp(Math.min(state.dateMax, globalDateMax));
-  const statsLine = `${slots.length} comparison group${slots.length !== 1 ? 's' : ''} · ${dateDescCmp}`;
+  const outlierNoteCmp = state.pointMode === 'none' ? ' · outliers not shown' : '';
+  const statsLine = `${slots.length} comparison group${slots.length !== 1 ? 's' : ''} · ${dateDescCmp}${outlierNoteCmp}`;
 
   ctx.textBaseline = 'top';
   ctx.font = `bold ${titleFont}px "Titillium Web", system-ui, sans-serif`;
@@ -2120,7 +2123,6 @@ function generateMainAltText() {
   if (!groups.length) return '';
 
   const dim = splitLabel[state.splitBy] || '';
-  const outlierNote = state.pointMode === 'none' ? ' Outlier dots are not shown on this chart.' : '';
   const header = [
     `Box plot comparing indoor ${metric} ${dim}${titleContext} — ${groups.length} group${groups.length > 1 ? 's' : ''}.${outlierNote}`,
     `Filters: ${filterStr}.`,
@@ -2175,6 +2177,176 @@ function generateComparisonAltText() {
   const matchNote = state.matchLocations ? ' Only locations with measurements in all groups are included (matched locations).' : '';
   const outlierNote = state.pointMode === 'none' ? ' Outlier dots are not shown on this chart.' : '';
   return `Side-by-side box plot comparing indoor ${metric} across ${parts.length} filter set${parts.length > 1 ? 's' : ''}.${matchNote}${outlierNote} ${parts.join(' ')} ${IQR_NOTE}`;
+}
+
+// ─── URL state sharing ────────────────────────────────────────────────────────
+
+function serializeAppState() {
+  const o = {};
+  if (state.countries.length)          o.c   = state.countries;
+  if (state.countryExclude)            o.cx  = 1;
+  if (state.locTypes.length)           o.t   = state.locTypes;
+  if (state.locTypeExclude)            o.tx  = 1;
+  if (state.brands.length)             o.b   = state.brands;
+  if (state.brandExclude)              o.bx  = 1;
+  if (state.dateMin > globalDateMin)   o.d0  = state.dateMin;
+  if (state.dateMax < globalDateMax)   o.d1  = state.dateMax;
+  if (state.splitBy    !== 'type')     o.sp  = state.splitBy;
+  if (state.timePeriod !== 'month')    o.tp  = state.timePeriod;
+  if (state.limitN     !== 10)         o.ln  = state.limitN;
+  if (state.limitType  !== 'count')    o.lt  = state.limitType;
+  if (state.displayOrder !== 'lowest') o.lo  = state.displayOrder;
+  if (state.minEntries   > 1)          o.me  = state.minEntries;
+  if (state.minMeasPerLoc > 1)         o.mm  = state.minMeasPerLoc;
+  if (state.pointMode  !== 'all')      o.pm  = state.pointMode;
+  if (state.showMedian)                o.sm  = 1;
+  if (state.matchLocations)            o.ml  = 1;
+  if (!state.localTime)                o.llt = 0;
+  if (state.yAxisMode  !== 'co2')      o.ym  = state.yAxisMode;
+  if (state.hours)    o.hr = [...state.hours];
+  if (state.months)   o.mo = [...state.months];
+  if (state.weekdays) o.wd = [...state.weekdays];
+  if (slots.length) o.sl = slots.map((s, i) => {
+    const ss = {};
+    if (s.countries.length)  ss.c  = s.countries;
+    if (s.countryExclude)    ss.cx = 1;
+    if (s.locTypes.length)   ss.t  = s.locTypes;
+    if (s.locTypeExclude)    ss.tx = 1;
+    if (s.brands.length)     ss.b  = s.brands;
+    if (s.brandExclude)      ss.bx = 1;
+    if (s.nwrType)           ss.nt = s.nwrType;
+    if (s.nwrId)             ss.ni = s.nwrId;
+    if (s.overrideTime)      ss.ot = 1;
+    if (s.hours)             ss.hr = [...s.hours];
+    if (s.months)            ss.mo = [...s.months];
+    if (s.weekdays)          ss.wd = [...s.weekdays];
+    if (s.color !== SLOT_COLORS[i % SLOT_COLORS.length]) ss.col = s.color;
+    return ss;
+  });
+  try { return btoa(JSON.stringify(o)); } catch { return ''; }
+}
+
+function deserializeAppState(hash) {
+  if (!hash || hash.length < 2) return null;
+  try { return JSON.parse(atob(hash.slice(1))); } catch { return null; }
+}
+
+function applyURLState(o) {
+  // Main filter dropdowns + exclude mode
+  function applyExclude(btnId, ms, stateKey, val) {
+    state[stateKey] = !!val;
+    const btn = document.getElementById(btnId);
+    btn.classList.toggle('exclude', !!val);
+    btn.textContent = val ? '≠' : '=';
+    ms.el.classList.toggle('exclude-mode', !!val);
+    btn._sync?.();
+  }
+  if (countryMS) { countryMS.setValues(o.c ?? []); applyExclude('country-mode', countryMS, 'countryExclude', o.cx); }
+  if (locTypeMS) { locTypeMS.setValues(o.t ?? []); applyExclude('loctype-mode', locTypeMS, 'locTypeExclude', o.tx); }
+  if (brandMS)   { brandMS.setValues(o.b ?? []);   applyExclude('brand-mode',   brandMS,   'brandExclude',   o.bx); }
+  state.countries = o.c ?? [];
+  state.locTypes  = o.t ?? [];
+  state.brands    = o.b ?? [];
+
+  // Date range (direct, without triggering update)
+  if (o.d0 != null || o.d1 != null) {
+    const sMin = document.getElementById('date-slider-min');
+    const sMax = document.getElementById('date-slider-max');
+    if (o.d0 != null) { sMin.value = Math.max(o.d0, +sMin.min); state.dateMin = +sMin.value; }
+    if (o.d1 != null) { sMax.value = Math.min(o.d1, +sMax.max); state.dateMax = +sMax.value; }
+    updateDateLabels();
+    updateDateTrack();
+  }
+
+  // Split + display radios
+  const splitVals = ['none','country','type','brand','location','time'];
+  if (o.sp && splitVals.includes(o.sp)) {
+    state.splitBy = o.sp;
+    const r = document.querySelector(`input[name="split"][value="${o.sp}"]`);
+    if (r) r.checked = true;
+    document.getElementById('time-period-wrap').style.display = o.sp === 'time' ? 'flex' : 'none';
+  }
+  if (o.tp) {
+    state.timePeriod = o.tp;
+    const sel = document.getElementById('time-period-select');
+    if (sel) sel.value = o.tp;
+  }
+  if (o.pm) {
+    state.pointMode = o.pm;
+    const r = document.querySelector(`input[name="point-mode"][value="${o.pm}"]`);
+    if (r) r.checked = true;
+  }
+  if (o.ym) {
+    state.yAxisMode = o.ym;
+    const r = document.querySelector(`input[name="yaxis"][value="${o.ym}"]`);
+    if (r) r.checked = true;
+  }
+
+  // Checkboxes
+  if (o.sm) { state.showMedian = true; document.getElementById('show-median').checked = true; document.getElementById('show-median-cmp').checked = true; }
+  if (o.ml) { state.matchLocations = true; document.getElementById('match-locations').checked = true; }
+  if (o.llt === 0) {
+    state.localTime = false;
+    document.getElementById('local-time-toggle').checked = false;
+    document.getElementById('hours-label-text').textContent = 'Hours (UTC)';
+    document.getElementById('opt-hour').textContent  = 'Hour (UTC)';
+    document.getElementById('opt-hour4').textContent = '4-Hour Periods (UTC)';
+  }
+
+  // Number inputs
+  if (o.ln) { state.limitN = o.ln; document.getElementById('limit-n').value = o.ln; }
+  if (o.lt) { state.limitType = o.lt; document.getElementById('limit-type').value = o.lt; }
+  if (o.lo) { state.displayOrder = o.lo; document.getElementById('display-order').value = o.lo; }
+  if (o.me) { state.minEntries = o.me; document.getElementById('min-entries').value = o.me; }
+  if (o.mm) { state.minMeasPerLoc = o.mm; document.getElementById('min-meas-per-loc').value = o.mm; }
+
+  // Time chips (partial sets)
+  function restoreChipGroup(containerId, stateKey, values) {
+    const newSet = new Set(values);
+    state[stateKey] = newSet;
+    document.querySelectorAll(`#${containerId} .chip`).forEach(chip => {
+      chip.classList.toggle('active', newSet.has(+chip.dataset.value));
+    });
+  }
+  if (o.hr) restoreChipGroup('hour-chips',    'hours',    o.hr);
+  if (o.mo) restoreChipGroup('month-chips',   'months',   o.mo);
+  if (o.wd) restoreChipGroup('weekday-chips', 'weekdays', o.wd);
+
+  // Slots
+  if (o.sl && Array.isArray(o.sl)) {
+    slots.length = 0;
+    o.sl.forEach((ss, i) => {
+      slots.push({
+        countries:      ss.c  ?? [],
+        countryExclude: !!ss.cx,
+        locTypes:       ss.t  ?? [],
+        locTypeExclude: !!ss.tx,
+        brands:         ss.b  ?? [],
+        brandExclude:   !!ss.bx,
+        brandDisplayMap: {},
+        nwrType: ss.nt ?? '',
+        nwrId:   ss.ni ?? '',
+        overrideTime: !!ss.ot,
+        hours:    ss.hr ? new Set(ss.hr) : null,
+        months:   ss.mo ? new Set(ss.mo) : null,
+        weekdays: ss.wd ? new Set(ss.wd) : null,
+        color: ss.col ?? SLOT_COLORS[i % SLOT_COLORS.length],
+        label: 'All Data'
+      });
+      slots[i].label = slotLabel(slots[i]);
+    });
+    renderSlots();
+    updateAddSlotBtn();
+  }
+}
+
+let _urlUpdateTimer = null;
+function scheduleURLUpdate() {
+  clearTimeout(_urlUpdateTimer);
+  _urlUpdateTimer = setTimeout(() => {
+    const encoded = serializeAppState();
+    history.replaceState(null, '', encoded ? '#' + encoded : location.pathname + location.search);
+  }, 400);
 }
 
 function showExportModal(canvas, altText = '', generateFn = null) {
@@ -2490,9 +2662,10 @@ async function init() {
       initDateSlider();
       initTimeFilters();
       wireEvents();
+      const urlState = deserializeAppState(location.hash);
+      if (!urlState?.sl) { addSlot(); addSlot(); }
+      if (urlState) applyURLState(urlState);
       update();
-      addSlot();
-      addSlot();
 
     } catch (err) {
       console.error(err);

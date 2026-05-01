@@ -136,7 +136,7 @@ showPopup(data) {
         labels: Array.from({ length: maxLength }, (_, i) => i + 1),
         datasets: pageData.map((m, i) => {
           const avg = m.co2array.reduce((a, b) => a + b, 0) / m.co2array.length;
-          const grayValue = Math.floor((i / (pageData.length - 1 || 1)) * 220);
+          const grayValue = Math.floor((i / (pageData.length - 1 || 1)) * 195);
           const color = `rgb(${grayValue}, ${grayValue}, ${grayValue})`;
           const date = new Date(Number(m.startTime));
           const formattedDate = `${String(date.getDate()).padStart(2, '0')}-${String(date.getMonth() + 1).padStart(2, '0')}-${date.getFullYear()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`;
@@ -182,6 +182,9 @@ showPopup(data) {
         },
         layout: {
           padding: { right: 20 }
+        },
+        font: {
+          family: "'Titillium Web', system-ui, sans-serif"
         }
       };
 

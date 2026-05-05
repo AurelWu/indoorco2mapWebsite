@@ -649,7 +649,7 @@ function update() {
   updateSummary(filtered, groups);
   updateLimitVisibility();
   renderHistChart(filtered, groups);
-  updateHistSummary(filtered);
+  updateHistSummary(filtered, groups);
 
   if (slots.length > 0) updateComparisonChart();
   scheduleURLUpdate();
@@ -705,11 +705,13 @@ function renderHistChart(filteredRecords, groups) {
       histGroups = groups.map(g => ({ label: g.label, values: g.values.filter(v => isFinite(v)) }));
     } else {
       tooMany = true;
-      const values = [...aggregateByLocation(filteredRecords).values()].map(l => l.avgCO2).filter(v => isFinite(v));
+      const values = groups.flatMap(g => g.values.filter(v => isFinite(v)));
       histGroups = [{ label: 'All', values }];
     }
   } else {
-    const values = [...aggregateByLocation(filteredRecords).values()].map(l => l.avgCO2).filter(v => isFinite(v));
+    const values = (splitBy !== 'none' && groups.length > 0)
+      ? groups.flatMap(g => g.values.filter(v => isFinite(v)))
+      : [...aggregateByLocation(filteredRecords).values()].map(l => l.avgCO2).filter(v => isFinite(v));
     histGroups = [{ label: 'All', values }];
   }
 
@@ -837,16 +839,29 @@ function updateSummary(filtered, groups) {
   }
 }
 
-function updateHistSummary(filteredRecords) {
+function updateHistSummary(filteredRecords, groups) {
   const el = document.getElementById('hist-summary');
   if (!el) return;
-  const locs = aggregateByLocation(filteredRecords);
-  const locCount = locs.size;
-  const visitCount = [...locs.values()].reduce((s, l) => s + l.visits.length, 0);
+  let locCount, visitCount, catSuffix = '';
+  if (state.splitBy !== 'none' && groups && groups.length > 0) {
+    locCount  = groups.reduce((s, g) => s + g.count, 0);
+    visitCount = groups.reduce((s, g) => s + (g.visitCount ?? g.values.length), 0);
+    const LIMIT_QUALIFIER = { count: 'most frequently measured', highest: 'highest median CO₂', lowest: 'lowest median CO₂' };
+    const noun = state.splitBy === 'country' ? 'countries'
+               : state.splitBy === 'type'    ? 'location types'
+               : state.splitBy === 'brand'   ? 'brands'
+               : 'locations';
+    const q = LIMIT_QUALIFIER[state.limitType];
+    catSuffix = ` · ${groups.length} ${noun}${q ? ` (${q})` : ''}`;
+  } else {
+    const locs = aggregateByLocation(filteredRecords);
+    locCount  = locs.size;
+    visitCount = [...locs.values()].reduce((s, l) => s + l.visits.length, 0);
+  }
   const parts = buildFilterParts();
   el.innerHTML = '';
   const line1 = document.createElement('span');
-  line1.textContent = `${locCount.toLocaleString()} locations · ${visitCount.toLocaleString()} visits`;
+  line1.textContent = `${locCount.toLocaleString()} locations · ${visitCount.toLocaleString()} visits${catSuffix}`;
   el.appendChild(line1);
   if (parts.length) {
     el.appendChild(document.createElement('br'));
@@ -854,6 +869,13 @@ function updateHistSummary(filteredRecords) {
     line2.className = 'summary-filters';
     line2.textContent = parts.join(' · ');
     el.appendChild(line2);
+  }
+  if (state.splitBy !== 'none' && groups && groups.length > 0 && groups.length <= 10) {
+    el.appendChild(document.createElement('br'));
+    const line3 = document.createElement('span');
+    line3.className = 'summary-filters';
+    line3.textContent = groups.map(g => g.label).join(' · ');
+    el.appendChild(line3);
   }
 }
 
@@ -2198,6 +2220,220 @@ async function generateComparisonSocialCard(preset = 'landscape') {
   return cv;
 }
 
+async function renderExportHistChartImage(W, H) {
+  if (!histChart) return null;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  cv.style.cssText = 'position:fixed;left:-9999px;visibility:hidden';
+  document.body.appendChild(cv);
+
+  const FONT = Math.max(12, Math.round(18 * W / 1200));
+  const showPct = state.histPct;
+  const isSingle = histChart.data.datasets.length === 1;
+
+  const chart = new Chart(cv, {
+    type: 'bar',
+    data: {
+      labels: histChart.data.labels,
+      datasets: histChart.data.datasets.map(ds => ({ ...ds })),
+    },
+    options: {
+      responsive: false,
+      maintainAspectRatio: false,
+      animation: false,
+      devicePixelRatio: 1,
+      plugins: {
+        legend: { display: !isSingle, position: 'top', labels: { boxWidth: 12, font: { size: FONT, family: '"Titillium Web", system-ui, sans-serif' } } },
+        tooltip: { enabled: false },
+      },
+      scales: {
+        x: {
+          title: { display: true, text: 'CO₂ (ppm)', font: { size: FONT, family: '"Titillium Web", system-ui, sans-serif' } },
+          grid: { display: false },
+          ticks: { font: { size: FONT, family: '"Titillium Web", system-ui, sans-serif' } },
+        },
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: showPct ? '% of locations' : 'Locations', font: { size: FONT, family: '"Titillium Web", system-ui, sans-serif' } },
+          ticks: { font: { size: FONT, family: '"Titillium Web", system-ui, sans-serif' } },
+        },
+      },
+    },
+  });
+
+  const dataUrl = chart.toBase64Image('image/png', 1);
+  chart.destroy();
+  document.body.removeChild(cv);
+  return dataUrl;
+}
+
+async function generateHistSocialCard(preset = 'landscape') {
+  if (!histChart) return null;
+  await document.fonts.ready;
+  const logoData = await loadCardLogo();
+  const logo = logoData?.img ?? null;
+  const headerColor = logoData?.bgColor ?? '#1e40af';
+
+  const PRESETS = {
+    landscape: { W: 1200, targetH: 627 },
+    square:    { W: 1080, targetH: 1080 },
+    portrait:  { W:  627, targetH: 1200 },
+  };
+  const { W, targetH } = PRESETS[preset] ?? PRESETS.landscape;
+  const HEADER_H = 70;
+  const sc = W / 1200;
+  const hBrandFont = Math.max(15, Math.round(22 * sc));
+  const hDateFont  = Math.max(12, Math.round(18 * sc));
+  const titleFont  = Math.max(26, Math.round(40 * sc));
+  const subFont    = Math.max(13, Math.round(24 * sc));
+  const statsFont  = Math.max(12, Math.round(20 * sc));
+  const padX       = Math.max(18, Math.round(32 * sc));
+
+  const isSingle = histChart.data.datasets.length === 1;
+  const summaryLines = (document.getElementById('hist-summary')?.innerText || '').trim().split('\n').map(s => s.trim()).filter(Boolean);
+  const namesLine = summaryLines.length >= 3 ? summaryLines[2] : null;
+  const TITLE_H = namesLine ? 152 : 130;
+  const ZONE_LEGEND_H = isSingle ? 28 : 0;
+  const chartDispH = Math.max(220, targetH - HEADER_H - TITLE_H - ZONE_LEGEND_H);
+  const H = HEADER_H + TITLE_H + chartDispH + ZONE_LEGEND_H;
+
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  // ── Header ──
+  ctx.fillStyle = headerColor;
+  ctx.fillRect(0, 0, W, HEADER_H);
+  const LOGO_SIZE = 62;
+  const logoX = 7;
+  if (logo) {
+    ctx.fillStyle = headerColor;
+    ctx.fillRect(logoX, (HEADER_H - LOGO_SIZE) / 2, LOGO_SIZE, LOGO_SIZE);
+    ctx.drawImage(logo, logoX, (HEADER_H - LOGO_SIZE) / 2, LOGO_SIZE, LOGO_SIZE);
+  }
+  const textX = logo ? logoX + LOGO_SIZE + 10 : padX;
+  ctx.font = `bold ${hBrandFont}px "Titillium Web", system-ui, sans-serif`;
+  ctx.fillStyle = '#ffffff';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('indoorco2map.com', textX, HEADER_H / 2);
+  const dateStr = new Date().toLocaleDateString('en', { month: 'long', day: 'numeric', year: 'numeric' });
+  ctx.font = `${hDateFont}px "Titillium Web", system-ui, sans-serif`;
+  ctx.fillStyle = 'rgba(255,255,255,0.72)';
+  ctx.textAlign = 'right';
+  ctx.fillText(dateStr, W - padX, HEADER_H / 2);
+  ctx.textAlign = 'left';
+
+  // ── Title + filter + stats ──
+  const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  let titleContext = '';
+  if (state.locTypes.length === 1 && !state.locTypeExclude)
+    titleContext = ' in ' + cap(locTypeMS?.getLabel(state.locTypes[0]) || state.locTypes[0]);
+  else if (state.countries.length === 1 && !state.countryExclude)
+    titleContext = ' in ' + cap(countryMS?.getLabel(state.countries[0]) || state.countries[0]);
+  const cardTitle = 'Indoor CO₂ Distribution' + titleContext;
+
+  const fmtTs = ts => new Date(ts).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
+  const countryDesc = state.countries.length === 0 ? 'All countries'
+    : (state.countryExclude ? 'Excl. ' : '') + state.countries.map(v => countryMS?.getLabel(v) || v).join(', ');
+  const typeDesc = state.locTypes.length === 0 ? 'All location types'
+    : (state.locTypeExclude ? 'Excl. ' : '') + state.locTypes.map(v => locTypeMS?.getLabel(v) || v).join(', ');
+  const brandDesc = state.brands.length > 0
+    ? (state.brandExclude ? 'Excl. ' : '') + state.brands.map(v => brandMS?.getLabel(v) || v).join(', ')
+    : null;
+  const dateDesc = fmtTs(Math.max(state.dateMin, globalDateMin)) + '–' + fmtTs(Math.min(state.dateMax, globalDateMax));
+  const filterDesc = [countryDesc, typeDesc, brandDesc, dateDesc].filter(Boolean).join(' · ');
+
+  const statsLine = summaryLines[0] || '';
+
+  ctx.textBaseline = 'top';
+  ctx.font = `bold ${titleFont}px "Titillium Web", system-ui, sans-serif`;
+  ctx.fillStyle = '#111827';
+  ctx.fillText(cardTitle, padX, HEADER_H + 14);
+  ctx.font = `${subFont}px "Titillium Web", system-ui, sans-serif`;
+  ctx.fillStyle = '#6b7280';
+  ctx.fillText(filterDesc.slice(0, 130), padX, HEADER_H + 14 + 44);
+  ctx.font = `${statsFont}px "Titillium Web", system-ui, sans-serif`;
+  ctx.fillStyle = '#9ca3af';
+  ctx.fillText(statsLine.slice(0, 100), padX, HEADER_H + 14 + 44 + 28);
+  if (namesLine) {
+    ctx.fillText(namesLine, padX, HEADER_H + 14 + 44 + 28 + 22);
+  }
+
+  // ── Chart ──
+  const chartDataUrl = await renderExportHistChartImage(W, chartDispH);
+  const chartImg = new Image();
+  await new Promise(resolve => { chartImg.onload = resolve; chartImg.src = chartDataUrl; });
+  const chartY = HEADER_H + TITLE_H;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, chartY, W, chartDispH);
+  ctx.drawImage(chartImg, 0, chartY, W, chartDispH);
+
+  // ── Zone colour legend (single/combined only) ──
+  if (isSingle) {
+    const legendY = chartY + chartDispH + 8;
+    const swatchSize = 11;
+    const zones = [
+      { color: '#648eff', label: 'Good (<800 ppm)' },
+      { color: '#ffb000', label: 'Moderate (800–1400 ppm)' },
+      { color: '#ff190c', label: 'Unhealthy (>1400 ppm)' },
+    ];
+    ctx.font = `13px "Titillium Web", system-ui, sans-serif`;
+    ctx.textBaseline = 'middle';
+    let cx = padX;
+    const prefix = 'Bar colour by air quality zone:  ';
+    ctx.fillStyle = '#9ca3af';
+    ctx.fillText(prefix, cx, legendY + swatchSize / 2);
+    cx += ctx.measureText(prefix).width;
+    zones.forEach((z, i) => {
+      if (i > 0) {
+        ctx.fillStyle = '#9ca3af';
+        ctx.fillText('   ', cx, legendY + swatchSize / 2);
+        cx += ctx.measureText('   ').width;
+      }
+      ctx.fillStyle = z.color;
+      ctx.fillRect(cx, legendY, swatchSize, swatchSize);
+      cx += swatchSize + 4;
+      ctx.fillStyle = '#6b7280';
+      ctx.fillText(z.label, cx, legendY + swatchSize / 2);
+      cx += ctx.measureText(z.label).width;
+    });
+  }
+
+  return cv;
+}
+
+function generateHistAltText() {
+  if (!histChart) return '';
+  const showPct = state.histPct;
+  const labels = histChart.data.labels || [];
+  const datasets = histChart.data.datasets || [];
+  const isSingle = datasets.length === 1;
+  const statsLine = (document.getElementById('hist-summary')?.innerText || '').trim().split('\n')[0]?.trim() || '';
+  const fmtTs = ts => new Date(ts).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
+  const countryDesc = state.countries.length === 0 ? 'all countries'
+    : (state.countryExclude ? 'excl. ' : '') + state.countries.map(v => countryMS?.getLabel(v) || v).join(', ');
+  const typeDesc = state.locTypes.length === 0 ? 'all location types'
+    : (state.locTypeExclude ? 'excl. ' : '') + state.locTypes.map(v => locTypeMS?.getLabel(v) || v).join(', ');
+  const dateDesc = fmtTs(Math.max(state.dateMin, globalDateMin)) + '–' + fmtTs(Math.min(state.dateMax, globalDateMax));
+  const filterStr = [countryDesc, typeDesc, dateDesc].filter(Boolean).join('; ');
+
+  const unit = showPct ? '%' : ' locations';
+  const descDs = (ds) => {
+    const peak = ds.data.reduce((best, v, i) => v > best.v ? { v, i } : best, { v: -1, i: 0 });
+    return `Peak bin: ${labels[peak.i]} ppm at ${peak.v}${unit}.`;
+  };
+
+  const header = `Histogram of indoor CO₂ distribution (${showPct ? 'percentage of locations' : 'location count'} per CO₂ bin, bin size: ${state.histBinSize} ppm).`;
+  const filterLine = `Filters: ${filterStr}.`;
+  const dataLine = statsLine ? `Data: ${statsLine}.` : '';
+  const peakLines = isSingle ? descDs(datasets[0]) : datasets.map(ds => `${ds.label}: ${descDs(ds)}`).join(' ');
+
+  return [header, filterLine, dataLine, peakLines].filter(Boolean).join(' ');
+}
+
 function generateMainAltText() {
   if (!mainChart) return '';
   const isReb = state.yAxisMode === 'rebreathed';
@@ -2625,6 +2861,19 @@ function wireEvents() {
     try {
       const canvas = await generateSocialCard('landscape');
       if (canvas) showExportModal(canvas, generateMainAltText(), preset => generateSocialCard(preset));
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Share';
+    }
+  });
+
+  document.getElementById('export-hist-btn').addEventListener('click', async () => {
+    const btn = document.getElementById('export-hist-btn');
+    btn.disabled = true;
+    btn.textContent = '…';
+    try {
+      const canvas = await generateHistSocialCard('landscape');
+      if (canvas) showExportModal(canvas, generateHistAltText(), preset => generateHistSocialCard(preset));
     } finally {
       btn.disabled = false;
       btn.textContent = 'Share';

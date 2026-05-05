@@ -260,6 +260,36 @@
     </details>
   </section>
 
+  <!-- Distribution / Histogram -->
+  <section class="an-panel">
+    <div class="an-panel-title">Distribution</div>
+    <div class="filter-row">
+      <span style="font-size:0.85rem;color:#374151;white-space:nowrap">Bin size:</span>
+      <div class="radio-group">
+        <label><input type="radio" name="hist-bin" value="100"> 100 ppm</label>
+        <label><input type="radio" name="hist-bin" value="200" checked> 200 ppm</label>
+        <label><input type="radio" name="hist-bin" value="400"> 400 ppm</label>
+      </div>
+      <label class="scatter-toggle" style="margin-left:12px">
+        <input type="checkbox" id="hist-pct" checked> Show as %
+      </label>
+      <label class="scatter-toggle" style="margin-left:8px">
+        <input type="checkbox" id="hist-split"> Split by current grouping
+      </label>
+    </div>
+    <div id="hist-note" style="font-size:0.8rem;color:#6b7280;min-height:1.2em;margin:2px 0 4px"></div>
+    <div id="hist-summary"></div>
+    <div id="hist-chart-wrap" style="height:300px">
+      <canvas id="hist-chart"></canvas>
+    </div>
+    <div id="hist-zone-legend" style="font-size:0.78rem;color:#9ca3af;margin-top:4px">
+      Bar colour by air quality zone (single group / ≤5 groups):
+      <span style="color:#648eff">●</span> Good (&lt;800 ppm) &nbsp;
+      <span style="color:#ffb000">●</span> Moderate (800–1400 ppm) &nbsp;
+      <span style="color:#ff190c">●</span> Unhealthy (&gt;1400 ppm)
+    </div>
+  </section>
+
   <!-- Comparison mode -->
   <section class="an-panel">
     <div class="an-panel-title">

@@ -12,6 +12,7 @@ const toRebreathed = ppm => Math.max(0, (ppm - CO2_OUTDOOR) / (CO2_EXHALED - CO2
 
 let allRecords = [];
 let mainChart = null;
+let histChart = null;
 let comparisonChart = null;
 let slots = [];  // [{country,locType,brand,name,color}]
 let globalDateMin = 0, globalDateMax = Infinity;
@@ -41,7 +42,10 @@ const state = {
   months: null,    // null = all; Set of months (0=Jan…11=Dec) otherwise
   weekdays: null,  // null = all; Set of weekdays (0=Sun…6=Sat) otherwise
   localTime: true,  // use location's local timezone for hour/weekday/month
-  yAxisMode: 'co2'  // 'co2' | 'rebreathed' | 'both'
+  yAxisMode: 'co2',  // 'co2' | 'rebreathed' | 'both'
+  histBinSize: 200,
+  histPct: true,
+  histSplit: false,
 };
 
 // ─── Local timezone helpers ──────────────────────────────────────────────────
@@ -644,9 +648,123 @@ function update() {
   renderMainChart(groups);
   updateSummary(filtered, groups);
   updateLimitVisibility();
+  renderHistChart(filtered, groups);
+  updateHistSummary(filtered);
 
   if (slots.length > 0) updateComparisonChart();
   scheduleURLUpdate();
+}
+
+// ─── Histogram / Distribution ─────────────────────────────────────────────────
+
+const HIST_PALETTE = [
+  ['rgba(59,130,246,0.6)',  'rgba(59,130,246,1)'],
+  ['rgba(249,115,22,0.6)',  'rgba(249,115,22,1)'],
+  ['rgba(34,197,94,0.6)',   'rgba(34,197,94,1)'],
+  ['rgba(168,85,247,0.6)',  'rgba(168,85,247,1)'],
+  ['rgba(236,72,153,0.6)',  'rgba(236,72,153,1)'],
+];
+
+function histZoneColor(lo) {
+  if (lo >= 1400) return ['rgba(255,25,12,0.75)',  '#ff190c'];
+  if (lo >= 800)  return ['rgba(255,176,0,0.75)',  '#ffb000'];
+  return           ['rgba(100,142,255,0.75)', '#648eff'];
+}
+
+function getHistBinDefs(binSize) {
+  const FIRST = 400, LAST = 3000;
+  const defs = [];
+  for (let lo = FIRST; lo < LAST; lo += binSize) defs.push({ lo, hi: lo + binSize });
+  defs.push({ lo: LAST, hi: Infinity });
+  return defs;
+}
+
+function countIntoBins(values, defs) {
+  const step = defs.length > 1 ? defs[1].lo - defs[0].lo : 200;
+  const counts = new Array(defs.length).fill(0);
+  for (const v of values) {
+    if (!isFinite(v) || v < defs[0].lo) continue;
+    if (v >= defs[defs.length - 1].lo) { counts[counts.length - 1]++; continue; }
+    const i = Math.floor((v - defs[0].lo) / step);
+    if (i >= 0 && i < counts.length - 1) counts[i]++;
+  }
+  return counts;
+}
+
+function renderHistChart(filteredRecords, groups) {
+  const { histBinSize: binSize, histPct: showPct, histSplit, splitBy } = state;
+  const MAX_SPLIT = 5;
+  const defs = getHistBinDefs(binSize);
+  const labels = defs.map(d => d.hi === Infinity ? `${d.lo}+` : `${d.lo}–${d.hi}`);
+  const noteEl = document.getElementById('hist-note');
+
+  let histGroups, tooMany = false;
+
+  if (histSplit && splitBy !== 'none' && groups.length > 0) {
+    if (groups.length <= MAX_SPLIT) {
+      histGroups = groups.map(g => ({ label: g.label, values: g.values.filter(v => isFinite(v)) }));
+    } else {
+      tooMany = true;
+      const values = [...aggregateByLocation(filteredRecords).values()].map(l => l.avgCO2).filter(v => isFinite(v));
+      histGroups = [{ label: 'All', values }];
+    }
+  } else {
+    const values = [...aggregateByLocation(filteredRecords).values()].map(l => l.avgCO2).filter(v => isFinite(v));
+    histGroups = [{ label: 'All', values }];
+  }
+
+  if (noteEl) noteEl.textContent = tooMany
+    ? `Split view disabled (${groups.length} groups exceed the 5-group limit) — showing combined`
+    : '';
+  const isSingle = histGroups.length === 1;
+
+  const zoneLegendEl = document.getElementById('hist-zone-legend');
+  if (zoneLegendEl) zoneLegendEl.style.display = isSingle ? '' : 'none';
+
+  const datasets = histGroups.map((g, gi) => {
+    const rawCounts = countIntoBins(g.values, defs);
+    const total = g.values.length || 1;
+    const data = showPct ? rawCounts.map(c => Math.round(c / total * 1000) / 10) : rawCounts;
+    const [bg, border] = isSingle
+      ? [defs.map(d => histZoneColor(d.lo)[0]), defs.map(d => histZoneColor(d.lo)[1])]
+      : HIST_PALETTE[gi % HIST_PALETTE.length];
+    return {
+      label: g.label, data,
+      backgroundColor: bg, borderColor: border,
+      borderWidth: 1.2,
+      barPercentage: isSingle ? 0.9 : 0.75,
+      categoryPercentage: 0.8,
+    };
+  });
+
+  if (histChart) { histChart.destroy(); histChart = null; }
+  const canvas = document.getElementById('hist-chart');
+  if (!canvas) return;
+
+  histChart = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: { display: !isSingle, position: 'top', labels: { boxWidth: 12, font: { size: 12 } } },
+        tooltip: {
+          callbacks: {
+            title: items => `${items[0].label} ppm`,
+            label: item => ` ${item.dataset.label}: ${item.raw}${showPct ? '%' : ''}`,
+          }
+        }
+      },
+      scales: {
+        x: { title: { display: true, text: 'CO₂ (ppm)' }, grid: { display: false } },
+        y: {
+          beginAtZero: true,
+          title: { display: true, text: showPct ? '% of locations' : 'Locations' },
+        }
+      }
+    }
+  });
 }
 
 function rangeStr(sortedVals, fmt) {
@@ -659,6 +777,33 @@ function rangeStr(sortedVals, fmt) {
   }
   segs.push(s === p ? fmt(s) : `${fmt(s)}–${fmt(p)}`);
   return segs.join(', ');
+}
+
+function buildFilterParts() {
+  const parts = [];
+  if (state.countries.length)
+    parts.push((state.countryExclude ? '≠ ' : '') + state.countries.join(', '));
+  if (state.locTypes.length)
+    parts.push((state.locTypeExclude ? '≠ ' : '') + state.locTypes.join(', '));
+  if (state.brands.length) {
+    const names = state.brands.map(v => brandMS?.getLabel(v) ?? v).join(', ');
+    parts.push((state.brandExclude ? '≠ ' : '') + names);
+  }
+  const fmtDate = ts => new Date(ts).toLocaleDateString('en-CA');
+  if (state.dateMin > globalDateMin || state.dateMax < globalDateMax)
+    parts.push(`${fmtDate(state.dateMin)} – ${fmtDate(state.dateMax)}`);
+  if (state.months) {
+    const MO = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    parts.push('Months: ' + rangeStr([...state.months].sort((a,b)=>a-b), m => MO[m]));
+  }
+  if (state.weekdays) {
+    const ORDER = [1,2,3,4,5,6,0];
+    const DNAME = {0:'Sun',1:'Mon',2:'Tue',3:'Wed',4:'Thu',5:'Fri',6:'Sat'};
+    parts.push('Days: ' + ORDER.filter(d => state.weekdays.has(d)).map(d => DNAME[d]).join(', '));
+  }
+  if (state.hours)
+    parts.push('Hours: ' + rangeStr([...state.hours].sort((a,b)=>a-b), h => String(h).padStart(2,'0')));
+  return parts;
 }
 
 function updateSummary(filtered, groups) {
@@ -677,42 +822,31 @@ function updateSummary(filtered, groups) {
                       const q = LIMIT_QUALIFIER[state.limitType];
                       return ` · ${catCount} ${noun}${q ? ` (${q})` : ''}`;
                     })();
-
-  const parts = [];
-
-  if (state.countries.length)
-    parts.push((state.countryExclude ? '≠ ' : '') + state.countries.join(', '));
-
-  if (state.locTypes.length)
-    parts.push((state.locTypeExclude ? '≠ ' : '') + state.locTypes.join(', '));
-
-  if (state.brands.length) {
-    const names = state.brands.map(v => brandMS?.getLabel(v) ?? v).join(', ');
-    parts.push((state.brandExclude ? '≠ ' : '') + names);
-  }
-
-  const fmtDate = ts => new Date(ts).toLocaleDateString('en-CA');
-  if (state.dateMin > globalDateMin || state.dateMax < globalDateMax)
-    parts.push(`${fmtDate(state.dateMin)} – ${fmtDate(state.dateMax)}`);
-
-  if (state.months) {
-    const MO = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-    parts.push('Months: ' + rangeStr([...state.months].sort((a,b)=>a-b), m => MO[m]));
-  }
-
-  if (state.weekdays) {
-    const ORDER = [1,2,3,4,5,6,0];
-    const DNAME = {0:'Sun',1:'Mon',2:'Tue',3:'Wed',4:'Thu',5:'Fri',6:'Sat'};
-    parts.push('Days: ' + ORDER.filter(d => state.weekdays.has(d)).map(d => DNAME[d]).join(', '));
-  }
-
-  if (state.hours)
-    parts.push('Hours: ' + rangeStr([...state.hours].sort((a,b)=>a-b), h => String(h).padStart(2,'0')));
-
+  const parts = buildFilterParts();
   el.innerHTML = '';
   const line1 = document.createElement('span');
   const outlierNote = state.pointMode === 'none' ? ' · outliers not shown' : '';
   line1.textContent = `${locCount.toLocaleString()} locations · ${visitCount.toLocaleString()} visits shown${catSuffix}${outlierNote}`;
+  el.appendChild(line1);
+  if (parts.length) {
+    el.appendChild(document.createElement('br'));
+    const line2 = document.createElement('span');
+    line2.className = 'summary-filters';
+    line2.textContent = parts.join(' · ');
+    el.appendChild(line2);
+  }
+}
+
+function updateHistSummary(filteredRecords) {
+  const el = document.getElementById('hist-summary');
+  if (!el) return;
+  const locs = aggregateByLocation(filteredRecords);
+  const locCount = locs.size;
+  const visitCount = [...locs.values()].reduce((s, l) => s + l.visits.length, 0);
+  const parts = buildFilterParts();
+  el.innerHTML = '';
+  const line1 = document.createElement('span');
+  line1.textContent = `${locCount.toLocaleString()} locations · ${visitCount.toLocaleString()} visits`;
   el.appendChild(line1);
   if (parts.length) {
     el.appendChild(document.createElement('br'));
@@ -2613,6 +2747,15 @@ function wireEvents() {
   document.getElementById('add-slot-btn').addEventListener('click', addSlot);
   document.getElementById('duplicate-slot-btn').addEventListener('click', duplicateLastSlot);
 
+  document.querySelectorAll('input[name="hist-bin"]').forEach(r =>
+    r.addEventListener('change', e => { state.histBinSize = +e.target.value; update(); })
+  );
+  document.getElementById('hist-pct').addEventListener('change', e => {
+    state.histPct = e.target.checked; update();
+  });
+  document.getElementById('hist-split').addEventListener('change', e => {
+    state.histSplit = e.target.checked; update();
+  });
   updateDotsNote();
 }
 

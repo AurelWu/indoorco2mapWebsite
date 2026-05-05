@@ -221,7 +221,7 @@ input[type="text"] {
 
 /* ── Summary text ────────────────────────────────────── */
 
-#chart-summary {
+#chart-summary, #hist-summary {
   font-size: 0.8rem;
   color: #6b7280;
   margin-bottom: 8px;

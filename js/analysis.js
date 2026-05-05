@@ -666,9 +666,9 @@ const HIST_PALETTE = [
 ];
 
 function histZoneColor(lo) {
-  if (lo >= 1400) return ['rgba(255,25,12,0.75)',  '#ff190c'];
-  if (lo >= 800)  return ['rgba(255,176,0,0.75)',  '#ffb000'];
-  return           ['rgba(100,142,255,0.75)', '#648eff'];
+  if (lo >= 1400) return ['#ff190c', '#ff190c'];
+  if (lo >= 800)  return ['#ffb000', '#ffb000'];
+  return           ['#648eff', '#648eff'];
 }
 
 function getHistBinDefs(binSize) {
@@ -2291,7 +2291,7 @@ async function generateHistSocialCard(preset = 'landscape') {
   const summaryLines = (document.getElementById('hist-summary')?.innerText || '').trim().split('\n').map(s => s.trim()).filter(Boolean);
   const namesLine = summaryLines.length >= 3 ? summaryLines[2] : null;
   const TITLE_H = namesLine ? 152 : 130;
-  const ZONE_LEGEND_H = isSingle ? 28 : 0;
+  const ZONE_LEGEND_H = isSingle ? 32 : 0;
   const chartDispH = Math.max(220, targetH - HEADER_H - TITLE_H - ZONE_LEGEND_H);
   const H = HEADER_H + TITLE_H + chartDispH + ZONE_LEGEND_H;
 
@@ -2372,29 +2372,29 @@ async function generateHistSocialCard(preset = 'landscape') {
   // ── Zone colour legend (single/combined only) ──
   if (isSingle) {
     const legendY = chartY + chartDispH + 8;
-    const swatchSize = 11;
+    const swatchSize = 13;
     const zones = [
       { color: '#648eff', label: 'Good (<800 ppm)' },
       { color: '#ffb000', label: 'Moderate (800–1400 ppm)' },
       { color: '#ff190c', label: 'Unhealthy (>1400 ppm)' },
     ];
-    ctx.font = `13px "Titillium Web", system-ui, sans-serif`;
+    ctx.font = `15px "Titillium Web", system-ui, sans-serif`;
     ctx.textBaseline = 'middle';
     let cx = padX;
-    const prefix = 'Bar colour by air quality zone:  ';
-    ctx.fillStyle = '#9ca3af';
+    const prefix = 'Bar colour by GO IAQS air quality category:  ';
+    ctx.fillStyle = '#374151';
     ctx.fillText(prefix, cx, legendY + swatchSize / 2);
     cx += ctx.measureText(prefix).width;
     zones.forEach((z, i) => {
       if (i > 0) {
-        ctx.fillStyle = '#9ca3af';
+        ctx.fillStyle = '#374151';
         ctx.fillText('   ', cx, legendY + swatchSize / 2);
         cx += ctx.measureText('   ').width;
       }
       ctx.fillStyle = z.color;
       ctx.fillRect(cx, legendY, swatchSize, swatchSize);
       cx += swatchSize + 4;
-      ctx.fillStyle = '#6b7280';
+      ctx.fillStyle = '#374151';
       ctx.fillText(z.label, cx, legendY + swatchSize / 2);
       cx += ctx.measureText(z.label).width;
     });

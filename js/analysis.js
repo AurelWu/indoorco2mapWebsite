@@ -709,9 +709,7 @@ function renderHistChart(filteredRecords, groups) {
       histGroups = [{ label: 'All', values }];
     }
   } else {
-    const values = (splitBy !== 'none' && groups.length > 0)
-      ? groups.flatMap(g => g.values.filter(v => isFinite(v)))
-      : [...aggregateByLocation(filteredRecords).values()].map(l => l.avgCO2).filter(v => isFinite(v));
+    const values = [...aggregateByLocation(filteredRecords).values()].map(l => l.avgCO2).filter(v => isFinite(v));
     histGroups = [{ label: 'All', values }];
   }
 
@@ -762,7 +760,7 @@ function renderHistChart(filteredRecords, groups) {
         x: { title: { display: true, text: 'CO₂ (ppm)' }, grid: { display: false } },
         y: {
           beginAtZero: true,
-          title: { display: true, text: showPct ? '% of locations' : 'Locations' },
+          title: { display: true, text: showPct ? 'Percent of locations' : 'Locations' },
         }
       }
     }
@@ -843,7 +841,7 @@ function updateHistSummary(filteredRecords, groups) {
   const el = document.getElementById('hist-summary');
   if (!el) return;
   let locCount, visitCount, catSuffix = '';
-  if (state.splitBy !== 'none' && groups && groups.length > 0) {
+  if (state.histSplit && state.splitBy !== 'none' && groups && groups.length > 0) {
     locCount  = groups.reduce((s, g) => s + g.count, 0);
     visitCount = groups.reduce((s, g) => s + (g.visitCount ?? g.values.length), 0);
     const LIMIT_QUALIFIER = { count: 'most frequently measured', highest: 'highest median CO₂', lowest: 'lowest median CO₂' };
@@ -870,7 +868,7 @@ function updateHistSummary(filteredRecords, groups) {
     line2.textContent = parts.join(' · ');
     el.appendChild(line2);
   }
-  if (state.splitBy !== 'none' && groups && groups.length > 0 && groups.length <= 10) {
+  if (state.histSplit && state.splitBy !== 'none' && groups && groups.length > 0 && groups.length <= 10) {
     el.appendChild(document.createElement('br'));
     const line3 = document.createElement('span');
     line3.className = 'summary-filters';
@@ -2254,7 +2252,7 @@ async function renderExportHistChartImage(W, H) {
         },
         y: {
           beginAtZero: true,
-          title: { display: true, text: showPct ? '% of locations' : 'Locations', font: { size: FONT, family: '"Titillium Web", system-ui, sans-serif' } },
+          title: { display: true, text: showPct ? 'Percent of locations' : 'Locations', font: { size: FONT, family: '"Titillium Web", system-ui, sans-serif' } },
           ticks: { font: { size: FONT, family: '"Titillium Web", system-ui, sans-serif' } },
         },
       },

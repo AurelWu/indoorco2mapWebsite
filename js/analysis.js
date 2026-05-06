@@ -2409,6 +2409,7 @@ function generateHistAltText() {
   const labels = histChart.data.labels || [];
   const datasets = histChart.data.datasets || [];
   const isSingle = datasets.length === 1;
+  const binSize = state.histBinSize;
   const statsLine = (document.getElementById('hist-summary')?.innerText || '').trim().split('\n')[0]?.trim() || '';
   const fmtTs = ts => new Date(ts).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
   const countryDesc = state.countries.length === 0 ? 'all countries'
@@ -2417,19 +2418,43 @@ function generateHistAltText() {
     : (state.locTypeExclude ? 'excl. ' : '') + state.locTypes.map(v => locTypeMS?.getLabel(v) || v).join(', ');
   const dateDesc = fmtTs(Math.max(state.dateMin, globalDateMin)) + '–' + fmtTs(Math.min(state.dateMax, globalDateMax));
   const filterStr = [countryDesc, typeDesc, dateDesc].filter(Boolean).join('; ');
-
   const unit = showPct ? '%' : ' locations';
+  const fmtV = v => showPct ? `${v}%` : `${v} location${v !== 1 ? 's' : ''}`;
+
+  // For 100 ppm bins, merge pairs into 200 ppm groups for readability
   const descDs = (ds) => {
-    const peak = ds.data.reduce((best, v, i) => v > best.v ? { v, i } : best, { v: -1, i: 0 });
-    return `Peak bin: ${labels[peak.i]} ppm at ${peak.v}${unit}.`;
+    if (binSize === 100) {
+      const merged = [];
+      for (let i = 0; i < ds.data.length; i += 2) {
+        const a = ds.data[i] ?? 0;
+        const b = ds.data[i + 1] ?? 0;
+        const labelA = labels[i] || '';
+        const labelB = labels[i + 1];
+        // parse the lower bound of labelA (e.g. "400–500" → 400, "3000+" → 3000)
+        const lo = parseInt(labelA);
+        const hi = labelB ? parseInt(labelB) + binSize : null;
+        const rangeStr = hi ? `${lo}–${hi} ppm` : `${lo}+ ppm`;
+        const combined = showPct ? Math.round((a + b) * 10) / 10 : a + b;
+        merged.push(`${rangeStr}: ${fmtV(combined)}`);
+      }
+      return merged.join('; ') + '.';
+    }
+    // 200 or 400 ppm bins: describe each individually
+    return ds.data.map((v, i) => {
+      const lbl = labels[i] || '';
+      const rangeStr = lbl.includes('+') ? `${lbl} ppm` : `${lbl} ppm`;
+      return `${rangeStr}: ${fmtV(v)}`;
+    }).join('; ') + '.';
   };
 
-  const header = `Histogram of indoor CO₂ distribution (${showPct ? 'percentage of locations' : 'location count'} per CO₂ bin, bin size: ${state.histBinSize} ppm).`;
+  const header = `Histogram of indoor CO₂ distribution (${showPct ? 'percentage of locations' : 'location count'} per CO₂ bin, bin size: ${binSize} ppm${binSize === 100 ? ', grouped in 200 ppm ranges below' : ''}).`;
   const filterLine = `Filters: ${filterStr}.`;
   const dataLine = statsLine ? `Data: ${statsLine}.` : '';
-  const peakLines = isSingle ? descDs(datasets[0]) : datasets.map(ds => `${ds.label}: ${descDs(ds)}`).join(' ');
+  const binLines = isSingle
+    ? descDs(datasets[0])
+    : datasets.map(ds => `${ds.label}: ${descDs(ds)}`).join(' ');
 
-  return [header, filterLine, dataLine, peakLines].filter(Boolean).join(' ');
+  return [header, filterLine, dataLine, binLines].filter(Boolean).join(' ');
 }
 
 function generateMainAltText() {

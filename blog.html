@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Blog — Indoor CO₂ Atlas</title>
+  <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@300;400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="./css/styles.css" />
+  <link rel="stylesheet" href="./css/blog.css" />
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+</head>
+<body>
+
+<nav>
+  <ul class="navbar">
+    <li class="navbar-icon">
+      <a href="https://indoorco2map.com">
+        <img src="images/icon512_512.png" alt="Indoor CO₂ Map Logo" class="navbar-logo">
+      </a>
+    </li>
+    <div class="dropdown">
+      <button onclick="this.nextElementSibling.classList.toggle('show')" class="dropbtn">Menu</button>
+      <div class="dropdown-content">
+        <a href="https://indoorco2map.com/transit.html">Public Transit</a>
+        <a href="https://www.indoorco2map.com/analysis.html">Data Analysis</a>
+        <a href="https://www.indoorco2map.com/BoxPlotLocationTypes.html">Results by Location Type</a>
+        <a href="https://www.indoorco2map.com/supermarketdetails.html">Supermarket Charts (Germany)</a>
+        <a href="https://indoorco2map.com/stats.html">Activity Stats</a>
+        <a href="https://indoorco2map.com/frequencyMapNUTS1.html">Activity Map by NUTS1 Region</a>
+        <a href="https://www.indoorco2map.com/allSupermarkets.html">All Supermarkets (Germany)</a>
+        <a href="blog.html"><strong>Blog</strong></a>
+        <a href="#" onclick="event.preventDefault()">
+          <i class="fas fa-download"></i> Download Data
+        </a>
+      </div>
+    </div>
+  </ul>
+</nav>
+
+<div id="blog-main"></div>
+
+<script>
+const slug = new URLSearchParams(location.search).get('post');
+
+if (slug) {
+  showArticle(slug);
+} else {
+  showIndex();
+}
+
+async function showIndex() {
+  const main = document.getElementById('blog-main');
+  try {
+    const res = await fetch('blog/index.json');
+    if (!res.ok) throw new Error('Failed to load article list');
+    const posts = await res.json();
+
+    document.title = 'Blog — Indoor CO₂ Atlas';
+
+    const titleEl = document.createElement('h1');
+    titleEl.id = 'blog-index-title';
+    titleEl.textContent = 'Blog';
+    main.appendChild(titleEl);
+
+    for (const post of posts) {
+      const card = document.createElement('a');
+      card.className = 'blog-card';
+      card.href = `blog.html?post=${encodeURIComponent(post.slug)}`;
+      card.innerHTML = `
+        <div class="blog-card-title">${post.title}</div>
+        <div class="blog-card-date">${formatDate(post.date)}</div>
+        ${post.summary ? `<div class="blog-card-summary">${post.summary}</div>` : ''}
+      `;
+      main.appendChild(card);
+    }
+  } catch (err) {
+    main.innerHTML = `<div id="blog-error">Could not load posts: ${err.message}</div>`;
+  }
+}
+
+async function showArticle(slug) {
+  const main = document.getElementById('blog-main');
+  try {
+    const res = await fetch(`blog/posts/${slug}.md`);
+    if (!res.ok) throw new Error('Article not found');
+    const md = await res.text();
+
+    // Extract title (first # heading) for <title> and header
+    const titleMatch = md.match(/^#\s+(.+)$/m);
+    const title = titleMatch ? titleMatch[1] : slug;
+    document.title = `${title} — Indoor CO₂ Atlas Blog`;
+
+    // Find date from index.json for the header
+    let dateStr = '';
+    try {
+      const idx = await fetch('blog/index.json');
+      const posts = await idx.json();
+      const meta = posts.find(p => p.slug === slug);
+      if (meta?.date) dateStr = formatDate(meta.date);
+    } catch (_) {}
+
+    const back = document.createElement('a');
+    back.id = 'blog-back';
+    back.href = 'blog.html';
+    back.innerHTML = '<i class="fas fa-arrow-left"></i> All posts';
+    main.appendChild(back);
+
+    const article = document.createElement('div');
+    article.id = 'blog-article';
+
+    if (dateStr) {
+      const dateEl = document.createElement('div');
+      dateEl.id = 'blog-article-date';
+      dateEl.textContent = dateStr;
+      article.appendChild(dateEl);
+    }
+
+    const body = document.createElement('div');
+    body.id = 'blog-article-body';
+    body.innerHTML = marked.parse(md);
+    article.appendChild(body);
+
+    main.appendChild(article);
+  } catch (err) {
+    main.innerHTML = `<div id="blog-error">Could not load article: ${err.message}</div>`;
+  }
+}
+
+function formatDate(iso) {
+  return new Date(iso).toLocaleDateString('en', { year: 'numeric', month: 'long', day: 'numeric' });
+}
+</script>
+
+<a href="impressum.html" class="impressum-link">Impressum / Datenschutz</a>
+</body>
+</html>

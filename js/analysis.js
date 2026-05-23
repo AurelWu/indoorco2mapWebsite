@@ -803,6 +803,8 @@ function buildFilterParts() {
   }
   if (state.hours)
     parts.push('Hours: ' + rangeStr([...state.hours].sort((a,b)=>a-b), h => String(h).padStart(2,'0')));
+  if (state.minEntries > 1)    parts.push(`≥${state.minEntries} locations/category`);
+  if (state.minMeasPerLoc > 1) parts.push(`≥${state.minMeasPerLoc} measurements/location`);
   return parts;
 }
 
@@ -1983,7 +1985,9 @@ async function generateSocialCard(preset = 'landscape') {
     ? (state.brandExclude ? 'Excl. ' : '') + state.brands.map(v => brandMS?.getLabel(v) || v).join(', ')
     : null;
   const dateDesc = fmtTs(Math.max(state.dateMin, globalDateMin)) + '–' + fmtTs(Math.min(state.dateMax, globalDateMax));
-  const filterDesc = [countryDesc, typeDesc, brandDesc, dateDesc].filter(Boolean).join(' · ');
+  const minEntriesDesc = state.minEntries    > 1 ? `≥${state.minEntries} locations/category`       : null;
+  const minMeasDesc    = state.minMeasPerLoc > 1 ? `≥${state.minMeasPerLoc} measurements/location` : null;
+  const filterDesc = [countryDesc, typeDesc, brandDesc, dateDesc, minEntriesDesc, minMeasDesc].filter(Boolean).join(' · ');
 
   ctx.textBaseline = 'top';
 
@@ -2342,7 +2346,9 @@ async function generateHistSocialCard(preset = 'landscape') {
     ? (state.brandExclude ? 'Excl. ' : '') + state.brands.map(v => brandMS?.getLabel(v) || v).join(', ')
     : null;
   const dateDesc = fmtTs(Math.max(state.dateMin, globalDateMin)) + '–' + fmtTs(Math.min(state.dateMax, globalDateMax));
-  const filterDesc = [countryDesc, typeDesc, brandDesc, dateDesc].filter(Boolean).join(' · ');
+  const minEntriesDesc = state.minEntries    > 1 ? `≥${state.minEntries} locations/category`       : null;
+  const minMeasDesc    = state.minMeasPerLoc > 1 ? `≥${state.minMeasPerLoc} measurements/location` : null;
+  const filterDesc = [countryDesc, typeDesc, brandDesc, dateDesc, minEntriesDesc, minMeasDesc].filter(Boolean).join(' · ');
 
   const statsLine = summaryLines[0] || '';
 

@@ -14,6 +14,8 @@ let allRecords = [];
 let mainChart = null;
 let histChart = null;
 let comparisonChart = null;
+let activityChart = null;
+let lastFiltered = [];
 let slots = [];  // [{country,locType,brand,name,color}]
 let globalDateMin = 0, globalDateMax = Infinity;
 
@@ -46,6 +48,11 @@ const state = {
   histBinSize: 200,
   histPct: true,
   histSplit: false,
+  activityResolution: 30,
+  activityChartType: 'bar',
+  activityStackBy: 'type',
+  activityTopN: 5,
+  activityPercent: false,
 };
 
 // ─── Local timezone helpers ──────────────────────────────────────────────────
@@ -645,11 +652,14 @@ function update() {
     if (state.splitBy !== 'time') groups = applyLimit(groups, state.limitN, state.limitType, state.displayOrder);
   }
 
+  lastFiltered = filtered;
   renderMainChart(groups);
   updateSummary(filtered, groups);
   updateLimitVisibility();
   renderHistChart(filtered, groups);
   updateHistSummary(filtered, groups);
+  if (!document.getElementById('activity-panel')?.classList.contains('collapsed'))
+    renderActivityChart(filtered);
 
   if (slots.length > 0) updateComparisonChart();
   scheduleURLUpdate();
@@ -877,6 +887,216 @@ function updateHistSummary(filteredRecords, groups) {
     line3.textContent = groups.map(g => g.label).join(' · ');
     el.appendChild(line3);
   }
+}
+
+// ─── Activity / Measurements over Time ───────────────────────────────────────
+
+const ACTIVITY_PALETTE = [
+  '#3b82f6','#f59e0b','#10b981','#ef4444','#8b5cf6',
+  '#06b6d4','#f97316','#84cc16','#ec4899','#6366f1',
+];
+
+function buildDailyActivity(records, stackBy, topN) {
+  // Count records per (date, group)
+  const dateGroupMap = new Map(); // date → Map(group → count)
+  const groupTotals  = new Map(); // group → total count
+
+  for (const r of records) {
+    const date  = new Date(r._ts).toISOString().slice(0, 10);
+    const group = stackBy === 'country' ? (r.countryName || 'Unknown')
+                                        : (locTypeMS?.getLabel(r.osmTag) ?? r.osmTag ?? 'Unknown');
+    if (!dateGroupMap.has(date)) dateGroupMap.set(date, new Map());
+    const dm = dateGroupMap.get(date);
+    dm.set(group, (dm.get(group) || 0) + 1);
+    groupTotals.set(group, (groupTotals.get(group) || 0) + 1);
+  }
+
+  if (!dateGroupMap.size) return { dates: [], series: [] };
+
+  // Sort dates
+  const dates = [...dateGroupMap.keys()].sort();
+
+  // Fill gaps — span from first to last date
+  const allDates = [];
+  const d = new Date(dates[0]);
+  const last = new Date(dates[dates.length - 1]);
+  while (d <= last) {
+    allDates.push(d.toISOString().slice(0, 10));
+    d.setUTCDate(d.getUTCDate() + 1);
+  }
+
+  // Rank groups; keep top N, merge rest → "Other"
+  const ranked = [...groupTotals.entries()].sort((a, b) => b[1] - a[1]);
+  const topGroups = new Set(ranked.slice(0, topN).map(([g]) => g));
+  const allGroups = [...topGroups, ...(ranked.length > topN ? ['Other'] : [])];
+
+  const series = allGroups.map(label => ({
+    label,
+    data: allDates.map(date => {
+      const dm = dateGroupMap.get(date);
+      if (!dm) return 0;
+      if (label === 'Other') {
+        let sum = 0;
+        dm.forEach((v, g) => { if (!topGroups.has(g)) sum += v; });
+        return sum;
+      }
+      return dm.get(label) || 0;
+    }),
+  }));
+
+  return { dates: allDates, series };
+}
+
+function applySmoothing(series, dates, windowDays) {
+  if (windowDays <= 1) return { dates, series };
+  const trim = windowDays - 1;
+  const smoothedSeries = series.map(ds => ({
+    ...ds,
+    data: ds.data.map((_, i) => {
+      const lo = Math.max(0, i - trim);
+      let sum = 0;
+      for (let j = lo; j <= i; j++) sum += ds.data[j];
+      return Math.round((sum / (i - lo + 1)) * 10) / 10;
+    }).slice(trim),
+  }));
+  return { dates: dates.slice(trim), series: smoothedSeries };
+}
+
+function renderActivityChart(filteredRecords) {
+  const panel = document.getElementById('activity-panel');
+  if (panel?.classList.contains('collapsed')) return;
+
+  const { activityResolution: res, activityChartType: chartType,
+          activityStackBy: stackBy, activityTopN: topN, activityPercent: showPct } = state;
+
+  // Hide/show top-N label based on stackBy mode
+  const topNLabel = document.getElementById('act-top-n-label');
+  if (topNLabel) topNLabel.style.display = stackBy === 'none' ? 'none' : '';
+
+  // Build data — 'none' = single total series
+  const { dates, series: rawSeries } = stackBy === 'none'
+    ? (() => {
+        const tmp = buildDailyActivity(filteredRecords, 'type', 9999);
+        if (!tmp.dates.length) return { dates: [], series: [] };
+        const totals = tmp.dates.map((_, i) => tmp.series.reduce((s, ds) => s + ds.data[i], 0));
+        return { dates: tmp.dates, series: [{ label: 'All measurements', data: totals }] };
+      })()
+    : buildDailyActivity(filteredRecords, stackBy, topN);
+
+  // Normalize to 100% if requested (only meaningful when stacking)
+  const series = (showPct && stackBy !== 'none')
+    ? rawSeries.map(ds => ({
+        ...ds,
+        data: ds.data.map((v, i) => {
+          const total = rawSeries.reduce((s, d) => s + d.data[i], 0);
+          return total > 0 ? Math.round(v / total * 1000) / 10 : 0;
+        }),
+      }))
+    : rawSeries;
+
+  const { dates: displayDates, series: smoothed } = applySmoothing(series, dates, res);
+
+  if (activityChart) { activityChart.destroy(); activityChart = null; }
+  const canvas = document.getElementById('activity-chart');
+  if (!canvas || !displayDates.length) return;
+
+  const quarterMonths = new Set([0, 3, 6, 9]); // Jan, Apr, Jul, Oct
+  const fmtDate = iso => {
+    const d = new Date(iso);
+    return d.toLocaleDateString('en', { month: 'short', year: '2-digit' });
+  };
+
+  // Indices of first occurrence of each quarter month in displayDates
+  const quarterTickIndices = displayDates.reduce((acc, iso, i) => {
+    const d = new Date(iso);
+    if (!quarterMonths.has(d.getUTCMonth())) return acc;
+    const prev = displayDates[i - 1] ? new Date(displayDates[i - 1]) : null;
+    if (!prev || prev.getUTCMonth() !== d.getUTCMonth()) acc.push(i);
+    return acc;
+  }, []);
+
+  // Draw quarterly tick marks + labels below chart area
+  const quarterlyAxisPlugin = {
+    id: 'quarterlyAxis',
+    afterDraw(chart) {
+      const { ctx, scales: { x }, chartArea: { bottom } } = chart;
+      if (!x) return;
+      ctx.save();
+      ctx.strokeStyle = '#9ca3af';
+      ctx.lineWidth = 1;
+      ctx.fillStyle = '#374151';
+      ctx.font = '11px Titillium Web, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      quarterTickIndices.forEach(i => {
+        const px = x.getPixelForValue(i);
+        ctx.beginPath();
+        ctx.moveTo(px, bottom + 1);
+        ctx.lineTo(px, bottom + 7);
+        ctx.stroke();
+        ctx.fillText(fmtDate(displayDates[i]), px, bottom + 9);
+      });
+      ctx.restore();
+    },
+  };
+
+  const isArea = chartType === 'area';
+  const isStacked = stackBy !== 'none';
+
+  activityChart = new Chart(canvas.getContext('2d'), {
+    type: isArea ? 'line' : 'bar',
+    data: {
+      labels: displayDates,
+      datasets: smoothed.map((ds, i) => ({
+        label: ds.label,
+        data: ds.data,
+        backgroundColor: ds.label === 'Other'
+          ? 'rgba(209,213,219,0.8)'
+          : ACTIVITY_PALETTE[i % ACTIVITY_PALETTE.length] + (isArea ? '99' : 'cc'),
+        borderColor: ds.label === 'Other'
+          ? '#9ca3af'
+          : ACTIVITY_PALETTE[i % ACTIVITY_PALETTE.length],
+        borderWidth: isArea ? 1.5 : 0,
+        fill: isArea,
+        tension: isArea ? 0.3 : 0,
+        pointRadius: 0,
+      })),
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: {
+        legend: { display: isStacked, position: 'top', labels: { boxWidth: 12, font: { size: 12 } } },
+        tooltip: {
+          mode: 'index',
+          callbacks: {
+            title: items => items[0]?.label || '',
+            label: item => ` ${item.dataset.label}: ${item.raw}${showPct && isStacked ? '%' : ''}`,
+          },
+        },
+      },
+      layout: { padding: { bottom: 24 } },
+      scales: {
+        x: {
+          stacked: isStacked,
+          ticks: { display: false },
+          grid: { display: false },
+        },
+        y: {
+          stacked: isStacked,
+          beginAtZero: true,
+          ...(showPct && isStacked ? { max: 100 } : {}),
+          title: { display: true, text: showPct && isStacked ? '% of measurements' : 'Measurements' },
+          ticks: {
+            font: { size: 11 },
+            ...(showPct && isStacked ? { callback: v => v + '%' } : {}),
+          },
+        },
+      },
+    },
+    plugins: [quarterlyAxisPlugin],
+  });
 }
 
 function updateLimitVisibility() {
@@ -2874,6 +3094,34 @@ function showExportModal(canvas, altText = '', generateFn = null) {
 // ─── Event wiring ────────────────────────────────────────────────────────────
 
 function wireEvents() {
+  // ── Activity chart controls ──
+  document.querySelectorAll('input[name="act-res"]').forEach(r =>
+    r.addEventListener('change', e => { state.activityResolution = +e.target.value; renderActivityChart(lastFiltered); }));
+  document.querySelectorAll('input[name="act-type"]').forEach(r =>
+    r.addEventListener('change', e => { state.activityChartType = e.target.value; renderActivityChart(lastFiltered); }));
+  document.querySelectorAll('input[name="act-stack"]').forEach(r =>
+    r.addEventListener('change', e => { state.activityStackBy = e.target.value; renderActivityChart(lastFiltered); }));
+  document.getElementById('act-pct').addEventListener('change', e => {
+    state.activityPercent = e.target.checked; renderActivityChart(lastFiltered);
+  });
+  document.getElementById('act-square').addEventListener('change', e => {
+    const wrap = document.getElementById('activity-chart-wrap');
+    wrap.style.height = e.target.checked ? Math.round(wrap.clientWidth / 2) + 'px' : '300px';
+    renderActivityChart(lastFiltered);
+  });
+  document.getElementById('act-top-n').addEventListener('input', e => {
+    const n = parseInt(e.target.value, 10);
+    if (n >= 1) { state.activityTopN = n; renderActivityChart(lastFiltered); }
+  });
+  // Lazy render when panel is expanded (toggle already fired, so check absence of 'collapsed')
+  document.getElementById('activity-panel')?.addEventListener('click', e => {
+    if (e.target.closest('.an-panel-title')) {
+      const panel = document.getElementById('activity-panel');
+      if (!panel.classList.contains('collapsed'))
+        setTimeout(() => renderActivityChart(lastFiltered), 0);
+    }
+  });
+
   document.getElementById('local-time-toggle').addEventListener('change', e => {
     state.localTime = e.target.checked;
     const suffix = state.localTime ? 'local time' : 'UTC';

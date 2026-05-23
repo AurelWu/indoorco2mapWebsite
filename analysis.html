@@ -327,6 +327,39 @@
     </div>
   </section>
 
+  <!-- Activity Stats -->
+  <section class="an-panel collapsed" id="activity-panel">
+    <div class="an-panel-title">Building Measurement Activity over Time</div>
+    <div class="filter-row">
+      <span style="font-size:0.85rem;color:#374151;white-space:nowrap">Smoothing:</span>
+      <div class="radio-group">
+        <label><input type="radio" name="act-res" value="1"> Each day</label>
+        <label><input type="radio" name="act-res" value="7"> 7 days</label>
+        <label><input type="radio" name="act-res" value="14"> 14 days</label>
+        <label><input type="radio" name="act-res" value="30" checked> 30 days</label>
+        <label><input type="radio" name="act-res" value="90"> 90 days</label>
+        <label><input type="radio" name="act-res" value="180"> 180 days</label>
+      </div>
+    </div>
+    <div class="filter-row">
+      <span style="font-size:0.85rem;color:#374151;white-space:nowrap">Chart type:</span>
+      <div class="radio-group">
+        <label><input type="radio" name="act-type" value="bar" checked> Stacked bar</label>
+        <label><input type="radio" name="act-type" value="area"> Stacked area</label>
+      </div>
+      <span style="font-size:0.85rem;color:#374151;white-space:nowrap;margin-left:16px">Stack by:</span>
+      <div class="radio-group">
+        <label><input type="radio" name="act-stack" value="none"> None (total)</label>
+        <label><input type="radio" name="act-stack" value="type" checked> Location type</label>
+        <label><input type="radio" name="act-stack" value="country"> Country</label>
+      </div>
+      <label class="scatter-toggle" style="margin-left:10px"><input type="checkbox" id="act-pct"> Show as %</label>
+      <label style="font-size:0.85rem;color:#374151;margin-left:16px;white-space:nowrap" id="act-top-n-label">Top <input type="number" id="act-top-n" value="5" min="1" max="20" style="width:44px;margin:0 3px"> groups</label>
+      <label class="scatter-toggle" style="margin-left:auto"><input type="checkbox" id="act-square"> Taller chart</label>
+    </div>
+    <div id="activity-chart-wrap" style="height:300px"><canvas id="activity-chart"></canvas></div>
+  </section>
+
 </div><!-- #analysis-wrap -->
 
 <script>

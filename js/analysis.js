@@ -48,6 +48,7 @@ const state = {
   histBinSize: 200,
   histPct: true,
   histSplit: false,
+  histMode: 'ppm',
   activityResolution: 30,
   activityChartType: 'bar',
   activityStackBy: 'type',
@@ -667,6 +668,33 @@ function update() {
 
 // ─── Histogram / Distribution ─────────────────────────────────────────────────
 
+function co2ToScore(ppm) {
+  if (typeof ppm !== 'number' || isNaN(ppm)) return null;
+  if (ppm <= 537)  return 10;
+  if (ppm <= 712)  return 9;
+  if (ppm <= 800)  return 8;
+  if (ppm <= 900)  return 7;
+  if (ppm <= 1100) return 6;
+  if (ppm <= 1300) return 5;
+  if (ppm <= 1400) return 4;
+  if (ppm <= 2000) return 3;
+  if (ppm <= 3200) return 2;
+  if (ppm <= 4400) return 1;
+  return 0;
+}
+
+const SCORE_PPM_LABEL = {
+  10: '<537 ppm', 9: '537–712 ppm', 8: '713–800 ppm', 7: '801–900 ppm',
+  6: '901–1100 ppm', 5: '1101–1300 ppm', 4: '1301–1400 ppm',
+  3: '1401–2000 ppm', 2: '2001–3200 ppm', 1: '3201–4400 ppm', 0: '≥4401 ppm',
+};
+
+function scoreZoneColor(score) {
+  if (score >= 8) return '#648eff';
+  if (score >= 5) return '#ffb000';
+  return '#ff190c';
+}
+
 const HIST_PALETTE = [
   ['rgba(59,130,246,0.6)',  'rgba(59,130,246,1)'],
   ['rgba(249,115,22,0.6)',  'rgba(249,115,22,1)'],
@@ -702,14 +730,13 @@ function countIntoBins(values, defs) {
 }
 
 function renderHistChart(filteredRecords, groups) {
-  const { histBinSize: binSize, histPct: showPct, histSplit, splitBy } = state;
+  const { histBinSize: binSize, histPct: showPct, histSplit, splitBy, histMode } = state;
   const MAX_SPLIT = 5;
-  const defs = getHistBinDefs(binSize);
-  const labels = defs.map(d => d.hi === Infinity ? `${d.lo}+` : `${d.lo}–${d.hi}`);
   const noteEl = document.getElementById('hist-note');
+  const zoneLegendEl = document.getElementById('hist-zone-legend');
 
+  // Build group data (shared between ppm and score modes)
   let histGroups, tooMany = false;
-
   if (histSplit && splitBy !== 'none' && groups.length > 0) {
     if (groups.length <= MAX_SPLIT) {
       histGroups = groups.map(g => ({ label: g.label, values: g.values.filter(v => isFinite(v)) }));
@@ -728,24 +755,49 @@ function renderHistChart(filteredRecords, groups) {
     : '';
   const isSingle = histGroups.length === 1;
 
-  const zoneLegendEl = document.getElementById('hist-zone-legend');
-  if (zoneLegendEl) zoneLegendEl.style.display = isSingle ? '' : 'none';
+  let labels, datasets, xTitle, tooltipTitle;
 
-  const datasets = histGroups.map((g, gi) => {
-    const rawCounts = countIntoBins(g.values, defs);
-    const total = g.values.length || 1;
-    const data = showPct ? rawCounts.map(c => Math.round(c / total * 1000) / 10) : rawCounts;
-    const [bg, border] = isSingle
-      ? [defs.map(d => histZoneColor(d.lo)[0]), defs.map(d => histZoneColor(d.lo)[1])]
-      : HIST_PALETTE[gi % HIST_PALETTE.length];
-    return {
-      label: g.label, data,
-      backgroundColor: bg, borderColor: border,
-      borderWidth: 1.2,
-      barPercentage: isSingle ? 0.9 : 0.75,
-      categoryPercentage: 0.8,
-    };
-  });
+  if (histMode === 'score') {
+    // ── Score mode: x-axis = GO IAQS Score 10 → 0 ──────────────────────────
+    const SCORES = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0];
+    labels = SCORES.map(s => [String(s), SCORE_PPM_LABEL[s]]);
+    xTitle = 'GO IAQS Score';
+    tooltipTitle = items => { const s = +items[0].label[0]; return `Score ${s}  (${SCORE_PPM_LABEL[s]})`; };
+    if (zoneLegendEl) zoneLegendEl.style.display = 'none';
+
+    datasets = histGroups.map((g, gi) => {
+      const scoreCounts = new Array(11).fill(0);
+      for (const v of g.values) {
+        const s = co2ToScore(v);
+        if (s !== null) scoreCounts[10 - s]++;
+      }
+      const total = g.values.length || 1;
+      const data = showPct ? scoreCounts.map(c => Math.round(c / total * 1000) / 10) : scoreCounts;
+      const [bg, border] = isSingle
+        ? [SCORES.map(s => scoreZoneColor(s)), SCORES.map(s => scoreZoneColor(s))]
+        : HIST_PALETTE[gi % HIST_PALETTE.length];
+      return { label: g.label, data, backgroundColor: bg, borderColor: border,
+               borderWidth: 1.2, barPercentage: isSingle ? 0.9 : 0.75, categoryPercentage: 0.8 };
+    });
+  } else {
+    // ── ppm mode: existing behavior ─────────────────────────────────────────
+    const defs = getHistBinDefs(binSize);
+    labels = defs.map(d => d.hi === Infinity ? `${d.lo}+` : `${d.lo}–${d.hi}`);
+    xTitle = 'CO₂ (ppm)';
+    tooltipTitle = items => `${items[0].label} ppm`;
+    if (zoneLegendEl) zoneLegendEl.style.display = isSingle ? '' : 'none';
+
+    datasets = histGroups.map((g, gi) => {
+      const rawCounts = countIntoBins(g.values, defs);
+      const total = g.values.length || 1;
+      const data = showPct ? rawCounts.map(c => Math.round(c / total * 1000) / 10) : rawCounts;
+      const [bg, border] = isSingle
+        ? [defs.map(d => histZoneColor(d.lo)[0]), defs.map(d => histZoneColor(d.lo)[1])]
+        : HIST_PALETTE[gi % HIST_PALETTE.length];
+      return { label: g.label, data, backgroundColor: bg, borderColor: border,
+               borderWidth: 1.2, barPercentage: isSingle ? 0.9 : 0.75, categoryPercentage: 0.8 };
+    });
+  }
 
   if (histChart) { histChart.destroy(); histChart = null; }
   const canvas = document.getElementById('hist-chart');
@@ -761,13 +813,13 @@ function renderHistChart(filteredRecords, groups) {
         legend: { display: !isSingle, position: 'top', labels: { boxWidth: 12, font: { size: 12 } } },
         tooltip: {
           callbacks: {
-            title: items => `${items[0].label} ppm`,
+            title: tooltipTitle,
             label: item => ` ${item.dataset.label}: ${item.raw}${showPct ? '%' : ''}`,
           }
         }
       },
       scales: {
-        x: { title: { display: true, text: 'CO₂ (ppm)' }, grid: { display: false } },
+        x: { title: { display: true, text: xTitle }, grid: { display: false } },
         y: {
           beginAtZero: true,
           title: { display: true, text: showPct ? 'Percent of locations' : 'Locations' },
@@ -2470,7 +2522,7 @@ async function renderExportHistChartImage(W, H) {
       },
       scales: {
         x: {
-          title: { display: true, text: 'CO₂ (ppm)', font: { size: FONT, family: '"Titillium Web", system-ui, sans-serif' } },
+          title: { display: true, text: state.histMode === 'score' ? 'GO IAQS Score' : 'CO₂ (ppm)', font: { size: FONT, family: '"Titillium Web", system-ui, sans-serif' } },
           grid: { display: false },
           ticks: { font: { size: FONT, family: '"Titillium Web", system-ui, sans-serif' } },
         },
@@ -2555,7 +2607,7 @@ async function generateHistSocialCard(preset = 'landscape') {
     titleContext = ' in ' + cap(locTypeMS?.getLabel(state.locTypes[0]) || state.locTypes[0]);
   else if (state.countries.length === 1 && !state.countryExclude)
     titleContext = ' in ' + cap(countryMS?.getLabel(state.countries[0]) || state.countries[0]);
-  const cardTitle = 'Indoor CO₂ Distribution' + titleContext;
+  const cardTitle = (state.histMode === 'score' ? 'Indoor CO₂ Score Distribution' : 'Indoor CO₂ Distribution') + titleContext;
 
   const fmtTs = ts => new Date(ts).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
   const countryDesc = state.countries.length === 0 ? 'All countries'
@@ -2599,11 +2651,17 @@ async function generateHistSocialCard(preset = 'landscape') {
   if (isSingle) {
     const legendY = chartY + chartDispH + 8;
     const swatchSize = 13;
-    const zones = [
-      { color: '#648eff', label: 'Good (<800 ppm)' },
-      { color: '#ffb000', label: 'Moderate (800–1400 ppm)' },
-      { color: '#ff190c', label: 'Unhealthy (>1400 ppm)' },
-    ];
+    const zones = state.histMode === 'score'
+      ? [
+          { color: '#648eff', label: 'Good (Score 8–10)' },
+          { color: '#ffb000', label: 'Moderate (Score 5–7)' },
+          { color: '#ff190c', label: 'Unhealthy (Score 0–4)' },
+        ]
+      : [
+          { color: '#648eff', label: 'Good (<800 ppm)' },
+          { color: '#ffb000', label: 'Moderate (800–1400 ppm)' },
+          { color: '#ff190c', label: 'Unhealthy (>1400 ppm)' },
+        ];
     ctx.font = `15px "Titillium Web", system-ui, sans-serif`;
     ctx.textBaseline = 'middle';
     let cx = padX;
@@ -3273,6 +3331,14 @@ function wireEvents() {
   document.getElementById('add-slot-btn').addEventListener('click', addSlot);
   document.getElementById('duplicate-slot-btn').addEventListener('click', duplicateLastSlot);
 
+  document.querySelectorAll('input[name="hist-mode"]').forEach(r =>
+    r.addEventListener('change', e => {
+      state.histMode = e.target.value;
+      const binRow = document.getElementById('hist-bin-row');
+      if (binRow) binRow.style.display = e.target.value === 'score' ? 'none' : '';
+      update();
+    })
+  );
   document.querySelectorAll('input[name="hist-bin"]').forEach(r =>
     r.addEventListener('change', e => { state.histBinSize = +e.target.value; update(); })
   );

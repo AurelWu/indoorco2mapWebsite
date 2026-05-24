@@ -265,13 +265,22 @@
   <section class="an-panel">
     <div class="an-panel-title">Distribution <span class="an-panel-title-actions"><button id="export-hist-btn">Share</button></span></div>
     <div class="filter-row">
+      <span style="font-size:0.85rem;color:#374151;white-space:nowrap">X-axis:</span>
+      <div class="radio-group">
+        <label><input type="radio" name="hist-mode" value="ppm" checked> CO₂ ppm bins</label>
+        <label><input type="radio" name="hist-mode" value="score"> GO IAQS Score (10→0)</label>
+      </div>
+    </div>
+    <div class="filter-row" id="hist-bin-row">
       <span style="font-size:0.85rem;color:#374151;white-space:nowrap">Bin size:</span>
       <div class="radio-group">
         <label><input type="radio" name="hist-bin" value="100"> 100 ppm</label>
         <label><input type="radio" name="hist-bin" value="200" checked> 200 ppm</label>
         <label><input type="radio" name="hist-bin" value="400"> 400 ppm</label>
       </div>
-      <label class="scatter-toggle" style="margin-left:12px">
+    </div>
+    <div class="filter-row">
+      <label class="scatter-toggle">
         <input type="checkbox" id="hist-pct" checked> Show as %
       </label>
       <label class="scatter-toggle" style="margin-left:8px">

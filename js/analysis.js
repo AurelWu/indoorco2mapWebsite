@@ -2607,7 +2607,7 @@ async function generateHistSocialCard(preset = 'landscape') {
     titleContext = ' in ' + cap(locTypeMS?.getLabel(state.locTypes[0]) || state.locTypes[0]);
   else if (state.countries.length === 1 && !state.countryExclude)
     titleContext = ' in ' + cap(countryMS?.getLabel(state.countries[0]) || state.countries[0]);
-  const cardTitle = (state.histMode === 'score' ? 'Indoor CO₂ Score Distribution' : 'Indoor CO₂ Distribution') + titleContext;
+  const cardTitle = (state.histMode === 'score' ? 'GO IAQS Score (CO₂) Distribution' : 'Indoor CO₂ Distribution') + titleContext;
 
   const fmtTs = ts => new Date(ts).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
   const countryDesc = state.countries.length === 0 ? 'All countries'

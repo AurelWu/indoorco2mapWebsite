@@ -690,9 +690,9 @@ const SCORE_PPM_LABEL = {
 };
 
 function scoreZoneColor(score) {
-  if (score >= 8) return '#648eff';
-  if (score >= 5) return '#ffb000';
-  return '#ff190c';
+  if (score >= 8) return '#648eff';   // Good (≤800 ppm)
+  if (score >= 4) return '#ffb000';   // Moderate (801–1400 ppm)
+  return '#ff190c';                   // Unhealthy (>1400 ppm)
 }
 
 const HIST_PALETTE = [
@@ -2654,8 +2654,8 @@ async function generateHistSocialCard(preset = 'landscape') {
     const zones = state.histMode === 'score'
       ? [
           { color: '#648eff', label: 'Good (Score 8–10)' },
-          { color: '#ffb000', label: 'Moderate (Score 5–7)' },
-          { color: '#ff190c', label: 'Unhealthy (Score 0–4)' },
+          { color: '#ffb000', label: 'Moderate (Score 4–7)' },
+          { color: '#ff190c', label: 'Unhealthy (Score 0–3)' },
         ]
       : [
           { color: '#648eff', label: 'Good (<800 ppm)' },

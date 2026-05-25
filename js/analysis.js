@@ -1,5 +1,10 @@
 /* analysis.js — Indoor CO₂ Map data analysis page */
 
+// Unregister chartjs-plugin-datalabels from global scope; used locally per chart
+if (typeof ChartDataLabels !== 'undefined') {
+  Chart.unregister(ChartDataLabels);
+}
+
 const DATA_URL = 'https://www.indoorco2map.com/chartdata/IndoorCO2MapData.json';
 
 const SLOT_COLORS = ['#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6'];
@@ -45,6 +50,8 @@ const state = {
   weekdays: null,  // null = all; Set of weekdays (0=Sun…6=Sat) otherwise
   localTime: true,  // use location's local timezone for hour/weekday/month
   yAxisMode: 'co2',  // 'co2' | 'rebreathed' | 'both'
+  mainChartType: 'boxplot',
+  iaqsGranularity: 'zone',
   histBinSize: 200,
   histPct: true,
   histSplit: false,
@@ -420,6 +427,19 @@ const medianLabelPlugin = {
 };
 
 function renderMainChart(groups) {
+  // Show/hide chart-type-specific UI
+  const isBoxplot = state.mainChartType === 'boxplot';
+  const showGranularity = state.mainChartType === 'stacked';
+  const legend = document.getElementById('boxplot-legend');
+  const granLabel = document.getElementById('iaqs-granularity-label');
+  const granGroup = document.getElementById('iaqs-granularity-group');
+  if (legend)     legend.style.display     = isBoxplot ? '' : 'none';
+  if (granLabel)  granLabel.style.display  = showGranularity ? '' : 'none';
+  if (granGroup)  granGroup.style.display  = showGranularity ? '' : 'none';
+
+  if (state.mainChartType === 'strip')   return renderStripChart(groups);
+  if (state.mainChartType === 'stacked') return renderStackedZoneChart(groups);
+
   const wrap = document.getElementById('main-chart-wrap');
   const canvas = document.getElementById('main-chart');
 
@@ -469,6 +489,218 @@ function renderMainChart(groups) {
     },
     options: buildChartOptions(false, state.pointMode === 'none' ? getWhiskerMax(groups) : getDataMax(groups), state.splitBy === 'location' ? groups.map(g => g.meta || null) : null),
     plugins: [medianLinePlugin, medianLabelPlugin]
+  });
+}
+
+function renderStripChart(groups) {
+  const wrap = document.getElementById('main-chart-wrap');
+  let canvas = document.getElementById('main-chart');
+  if (!canvas) { canvas = document.createElement('canvas'); canvas.id = 'main-chart'; }
+  if (!canvas.parentElement) { wrap.innerHTML = ''; wrap.appendChild(canvas); }
+  if (mainChart) { mainChart.destroy(); mainChart = null; }
+
+  if (!groups || groups.length === 0) {
+    wrap.innerHTML = '<div class="no-data-msg">No data matches the current filters.</div>';
+    return;
+  }
+
+  const height = Math.max(300, groups.length * 55);
+  wrap.style.height = height + 'px';
+  canvas.style.height = height + 'px';
+
+  const defs = [
+    { label: 'Good (<800 ppm)',         color: '#648eff' },
+    { label: 'Moderate (800–1400 ppm)', color: '#ffb000' },
+    { label: 'Unhealthy (>1400 ppm)',   color: '#ff190c' },
+  ];
+  const pts = defs.map(() => []);
+
+  groups.forEach((g, gi) => {
+    g.values.forEach((v, vi) => {
+      const s = co2ToScore(v);
+      const jitter = Math.sin(vi * 7.3 + gi * 3.1) * 0.38;
+      const dsIdx = s === null ? 2 : s >= 8 ? 0 : s >= 4 ? 1 : 2;
+      pts[dsIdx].push({ x: v, y: gi + jitter });
+    });
+  });
+
+  const medianPlugin = {
+    id: 'stripMedian',
+    afterDraw(chart) {
+      const { ctx, scales: { x, y } } = chart;
+      ctx.save();
+      ctx.strokeStyle = '#374151';
+      ctx.lineWidth = 2;
+      ctx.fillStyle = '#374151';
+      ctx.font = 'bold 11px Titillium Web, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      groups.forEach((g, gi) => {
+        const med = median(g.values);
+        if (!isFinite(med)) return;
+        const px = x.getPixelForValue(med);
+        const py = y.getPixelForValue(gi);
+        ctx.beginPath();
+        ctx.moveTo(px, py - 14);
+        ctx.lineTo(px, py + 14);
+        ctx.stroke();
+        ctx.fillText(Math.round(med), px, py - 15);
+      });
+      ctx.restore();
+    },
+  };
+
+  mainChart = new Chart(canvas.getContext('2d'), {
+    type: 'scatter',
+    data: {
+      datasets: defs.map((d, di) => ({
+        label: d.label,
+        data: pts[di],
+        backgroundColor: d.color + 'aa',
+        borderWidth: 0,
+        pointRadius: 3.5,
+        pointHoverRadius: 5,
+      })),
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: {
+        legend: {
+          position: 'top',
+          labels: {
+            boxWidth: 12,
+            font: { size: 12 },
+            generateLabels(chart) {
+              const items = Chart.defaults.plugins.legend.labels.generateLabels(chart);
+              items.push({
+                text: '| = Median',
+                fillStyle: 'transparent',
+                strokeStyle: '#374151',
+                lineWidth: 2,
+                pointStyle: 'line',
+                hidden: false,
+                datasetIndex: -1,
+              });
+              return items;
+            },
+          },
+          onClick(e, item) {
+            if (item.datasetIndex >= 0)
+              Chart.defaults.plugins.legend.onClick.call(this, e, item, this);
+          },
+        },
+        tooltip: {
+          callbacks: {
+            label: item => `${item.raw.x.toFixed(0)} ppm — ${groups[Math.round(item.raw.y)]?.label ?? ''}`,
+          },
+        },
+      },
+      scales: {
+        x: {
+          min: 400,
+          title: { display: true, text: 'CO₂ (ppm)' },
+          grid: { color: 'rgba(0,0,0,0.06)' },
+        },
+        y: {
+          reverse: true,
+          min: -0.5,
+          max: groups.length - 0.5,
+          afterBuildTicks(scale) {
+            scale.ticks = groups.map((_, i) => ({ value: i }));
+          },
+          ticks: {
+            callback: v => groups[v] ? `${groups[v].label}  (n=${groups[v].count})` : '',
+          },
+          grid: { color: 'rgba(0,0,0,0.06)' },
+        },
+      },
+    },
+    plugins: [medianPlugin],
+  });
+}
+
+function renderStackedZoneChart(groups) {
+  const wrap = document.getElementById('main-chart-wrap');
+  let canvas = document.getElementById('main-chart');
+  if (!canvas) { canvas = document.createElement('canvas'); canvas.id = 'main-chart'; }
+  if (!canvas.parentElement) { wrap.innerHTML = ''; wrap.appendChild(canvas); }
+  if (mainChart) { mainChart.destroy(); mainChart = null; }
+
+  if (!groups || groups.length === 0) {
+    wrap.innerHTML = '<div class="no-data-msg">No data matches the current filters.</div>';
+    return;
+  }
+
+  const scoreMode = state.iaqsGranularity === 'score';
+  const SCORES = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0];
+
+  // Sort groups by % Good (descending)
+  const sorted = [...groups].sort((a, b) => {
+    const pct = g => g.values.length
+      ? g.values.filter(v => (co2ToScore(v) ?? -1) >= 8).length / g.values.length
+      : 0;
+    return pct(b) - pct(a);
+  });
+
+  const height = Math.max(300, sorted.length * 44);
+  wrap.style.height = height + 'px';
+  canvas.style.height = height + 'px';
+
+  const groupLabels = sorted.map(g => [g.label, `n=${g.count}`]);
+
+  const catDefs = scoreMode
+    ? SCORES.map(s => ({ label: `Score ${s}`, color: scoreColor(s), test: v => co2ToScore(v) === s }))
+    : [
+        { label: 'Good (<800 ppm)',         color: '#648eff', test: v => (co2ToScore(v) ?? -1) >= 8 },
+        { label: 'Moderate (800–1400 ppm)', color: '#ffb000', test: v => { const s = co2ToScore(v); return s !== null && s >= 4 && s < 8; } },
+        { label: 'Unhealthy (>1400 ppm)',   color: '#ff190c', test: v => (co2ToScore(v) ?? 99) < 4 },
+      ];
+
+  const datasets = catDefs.map(cat => ({
+    label: cat.label,
+    backgroundColor: cat.color,
+    borderColor: '#fff',
+    borderWidth: 0.5,
+    data: sorted.map(g => {
+      const total = g.values.length || 1;
+      const cnt = g.values.filter(cat.test).length;
+      return Math.round(cnt / total * 1000) / 10;
+    }),
+    datalabels: {
+      display: ctx => ctx.dataset.data[ctx.dataIndex] >= 5,
+      color: '#fff',
+      font: { size: 11, weight: 'bold' },
+      formatter: v => v + '%',
+      anchor: 'center',
+      align: 'center',
+    },
+  }));
+
+  mainChart = new Chart(canvas.getContext('2d'), {
+    type: 'bar',
+    data: { labels: groupLabels, datasets },
+    options: {
+      indexAxis: 'y',
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      plugins: {
+        legend: { position: 'top', labels: { boxWidth: 12, font: { size: 12 } } },
+        tooltip: {
+          callbacks: {
+            label: item => ` ${item.dataset.label}: ${item.raw}%`,
+          },
+        },
+        datalabels: {}, // handled per-dataset above
+      },
+      scales: {
+        x: { stacked: true, max: 100, title: { display: true, text: '% of locations' }, grid: { display: false } },
+        y: { stacked: true },
+      },
+    },
+    plugins: [ChartDataLabels],
   });
 }
 
@@ -693,6 +925,48 @@ function scoreZoneColor(score) {
   if (score >= 8) return '#648eff';   // Good (≤800 ppm)
   if (score >= 4) return '#ffb000';   // Moderate (801–1400 ppm)
   return '#ff190c';                   // Unhealthy (>1400 ppm)
+}
+
+function makeHatchPattern(color, rank) {
+  // rank 0 = solid; 1/2/3 = progressively denser white diagonal stripes
+  const sz = 10;
+  const c = Object.assign(document.createElement('canvas'), { width: sz, height: sz });
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, sz, sz);
+  if (rank > 0) {
+    const cfgs = [null,
+      { opacity: 0.25, lineWidth: 1,   spacing: 8 },
+      { opacity: 0.35, lineWidth: 1.5, spacing: 5 },
+      { opacity: 0.45, lineWidth: 2,   spacing: 3 },
+    ];
+    const cfg = cfgs[rank];
+    ctx.strokeStyle = `rgba(255,255,255,${cfg.opacity})`;
+    ctx.lineWidth = cfg.lineWidth;
+    ctx.beginPath();
+    for (let i = -sz; i < sz * 2; i += cfg.spacing) {
+      ctx.moveTo(i, 0);
+      ctx.lineTo(i + sz, sz);
+    }
+    ctx.stroke();
+  }
+  return ctx.createPattern(c, 'repeat');
+}
+
+function scoreColor(score) {
+  const base = scoreZoneColor(score);
+  // rank = position within zone (0 = best/highest score, increases downward)
+  const rank = score >= 8 ? (10 - score)   // Good: 10→0, 9→1, 8→2
+             : score >= 4 ? (7 - score)    // Moderate: 7→0, 6→1, 5→2, 4→3
+             :              (3 - score);   // Unhealthy: 3→0, 2→1, 1→2, 0→3
+  return makeHatchPattern(base, rank);
+}
+
+function median(arr) {
+  if (!arr.length) return NaN;
+  const s = [...arr].sort((a, b) => a - b);
+  const m = Math.floor(s.length / 2);
+  return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
 const HIST_PALETTE = [
@@ -3331,6 +3605,12 @@ function wireEvents() {
   document.getElementById('add-slot-btn').addEventListener('click', addSlot);
   document.getElementById('duplicate-slot-btn').addEventListener('click', duplicateLastSlot);
 
+  document.querySelectorAll('input[name="main-chart-type"]').forEach(r =>
+    r.addEventListener('change', e => { state.mainChartType = e.target.value; update(); })
+  );
+  document.querySelectorAll('input[name="iaqs-granularity"]').forEach(r =>
+    r.addEventListener('change', e => { state.iaqsGranularity = e.target.value; update(); })
+  );
   document.querySelectorAll('input[name="hist-mode"]').forEach(r =>
     r.addEventListener('change', e => {
       state.histMode = e.target.value;

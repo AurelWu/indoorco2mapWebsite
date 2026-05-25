@@ -51,7 +51,7 @@ const state = {
   weekdays: null,  // null = all; Set of weekdays (0=Sun…6=Sat) otherwise
   localTime: true,  // use location's local timezone for hour/weekday/month
   yAxisMode: 'co2',  // 'co2' | 'rebreathed' | 'both'
-  mainChartType: 'boxplot',
+  mainChartType: 'stacked',
   iaqsGranularity: 'zone',
   histBinSize: 200,
   histPct: true,
@@ -3602,6 +3602,8 @@ function serializeAppState() {
   if (state.displayOrder !== 'lowest') o.lo  = state.displayOrder;
   if (state.minEntries   > 1)          o.me  = state.minEntries;
   if (state.minMeasPerLoc > 1)         o.mm  = state.minMeasPerLoc;
+  if (state.mainChartType !== 'stacked') o.mc = state.mainChartType;
+  if (state.iaqsGranularity !== 'zone')  o.ig = state.iaqsGranularity;
   if (state.pointMode  !== 'all')      o.pm  = state.pointMode;
   if (state.showMedian)                o.sm  = 1;
   if (state.matchLocations)            o.ml  = 1;
@@ -3674,6 +3676,22 @@ function applyURLState(o) {
     state.timePeriod = o.tp;
     const sel = document.getElementById('time-period-select');
     if (sel) sel.value = o.tp;
+  }
+  if (o.mc) {
+    const validTypes = ['boxplot', 'strip', 'stacked'];
+    if (validTypes.includes(o.mc)) {
+      state.mainChartType = o.mc;
+      const r = document.querySelector(`input[name="main-chart-type"][value="${o.mc}"]`);
+      if (r) r.checked = true;
+    }
+  }
+  if (o.ig) {
+    const validGran = ['zone', 'score'];
+    if (validGran.includes(o.ig)) {
+      state.iaqsGranularity = o.ig;
+      const r = document.querySelector(`input[name="iaqs-granularity"][value="${o.ig}"]`);
+      if (r) r.checked = true;
+    }
   }
   if (o.pm) {
     state.pointMode = o.pm;

@@ -21,6 +21,7 @@ let histChart = null;
 let comparisonChart = null;
 let activityChart = null;
 let lastFiltered = [];
+let lastGroups = [];
 let slots = [];  // [{country,locType,brand,name,color}]
 let globalDateMin = 0, globalDateMax = Infinity;
 
@@ -436,6 +437,8 @@ function renderMainChart(groups) {
   if (legend)     legend.style.display     = isBoxplot ? '' : 'none';
   if (granLabel)  granLabel.style.display  = showGranularity ? '' : 'none';
   if (granGroup)  granGroup.style.display  = showGranularity ? '' : 'none';
+  const bpOpts = document.getElementById('boxplot-options');
+  if (bpOpts)     bpOpts.style.display     = isBoxplot ? '' : 'none';
 
   if (state.mainChartType === 'strip')   return renderStripChart(groups);
   if (state.mainChartType === 'stacked') return renderStackedZoneChart(groups);
@@ -533,8 +536,8 @@ function renderStripChart(groups) {
       ctx.lineWidth = 2;
       ctx.fillStyle = '#374151';
       ctx.font = 'bold 11px Titillium Web, sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'bottom';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
       groups.forEach((g, gi) => {
         const med = median(g.values);
         if (!isFinite(med)) return;
@@ -544,7 +547,7 @@ function renderStripChart(groups) {
         ctx.moveTo(px, py - 14);
         ctx.lineTo(px, py + 14);
         ctx.stroke();
-        ctx.fillText(Math.round(med), px, py - 15);
+        ctx.fillText(Math.round(med), px + 6, py);
       });
       ctx.restore();
     },
@@ -671,7 +674,7 @@ function renderStackedZoneChart(groups) {
     datalabels: {
       display: ctx => ctx.dataset.data[ctx.dataIndex] >= 5,
       color: '#fff',
-      font: { size: 11, weight: 'bold' },
+      font: { size: 13, weight: 'bold' },
       formatter: v => v + '%',
       anchor: 'center',
       align: 'center',
@@ -886,6 +889,7 @@ function update() {
   }
 
   lastFiltered = filtered;
+  lastGroups = groups;
   renderMainChart(groups);
   updateSummary(filtered, groups);
   updateLimitVisibility();
@@ -2815,6 +2819,137 @@ async function renderExportHistChartImage(W, H) {
   return dataUrl;
 }
 
+async function renderExportStripChartImage(W, H) {
+  if (!mainChart || !lastGroups.length) return null;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  cv.style.cssText = 'position:fixed;left:-9999px;visibility:hidden';
+  document.body.appendChild(cv);
+
+  const FONT = Math.max(12, Math.round(18 * W / 1200));
+  const FF = '"Titillium Web", system-ui, sans-serif';
+
+  const groups = lastGroups;
+  const medianPlugin = {
+    id: 'exportStripMedian',
+    afterDraw(chart) {
+      const { ctx, scales: { x, y } } = chart;
+      ctx.save();
+      ctx.strokeStyle = '#374151';
+      ctx.lineWidth = 2;
+      ctx.fillStyle = '#374151';
+      ctx.font = `bold ${FONT}px ${FF}`;
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'middle';
+      groups.forEach((g, gi) => {
+        const med = median(g.values);
+        if (!isFinite(med)) return;
+        const px = x.getPixelForValue(med);
+        const py = y.getPixelForValue(gi);
+        ctx.beginPath();
+        ctx.moveTo(px, py - 14);
+        ctx.lineTo(px, py + 14);
+        ctx.stroke();
+        ctx.fillText(Math.round(med), px + 6, py);
+      });
+      ctx.restore();
+    },
+  };
+
+  const chart = new Chart(cv, {
+    type: 'scatter',
+    data: { datasets: mainChart.data.datasets.map(ds => ({ ...ds })) },
+    options: {
+      responsive: false,
+      maintainAspectRatio: false,
+      animation: false,
+      devicePixelRatio: 1,
+      plugins: {
+        legend: { position: 'top', labels: { boxWidth: 12, font: { size: FONT, family: FF } } },
+        tooltip: { enabled: false },
+      },
+      scales: {
+        x: {
+          min: 400,
+          title: { display: true, text: 'CO₂ (ppm)', font: { size: FONT, family: FF } },
+          ticks: { font: { size: FONT, family: FF } },
+          grid: { color: 'rgba(0,0,0,0.06)' },
+        },
+        y: {
+          reverse: true,
+          min: -0.5,
+          max: groups.length - 0.5,
+          afterBuildTicks(scale) { scale.ticks = groups.map((_, i) => ({ value: i })); },
+          ticks: {
+            font: { size: FONT, family: FF },
+            callback: v => groups[v] ? `${groups[v].label}  (n=${groups[v].count})` : '',
+          },
+          grid: { color: 'rgba(0,0,0,0.06)' },
+        },
+      },
+    },
+    plugins: [medianPlugin],
+  });
+
+  const dataUrl = chart.toBase64Image('image/png', 1);
+  chart.destroy();
+  document.body.removeChild(cv);
+  return dataUrl;
+}
+
+async function renderExportStackedChartImage(W, H) {
+  if (!mainChart) return null;
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  cv.style.cssText = 'position:fixed;left:-9999px;visibility:hidden';
+  document.body.appendChild(cv);
+
+  const FONT = Math.max(12, Math.round(18 * W / 1200));
+  const FF = '"Titillium Web", system-ui, sans-serif';
+  // y-axis has two-line labels; scale font down if per-group height is tight
+  const nGroups = mainChart.data.labels?.length || 1;
+  const FONT_Y = Math.min(FONT, Math.max(10, Math.floor(H / nGroups / 2.5)));
+
+  const chart = new Chart(cv, {
+    type: 'bar',
+    data: {
+      labels: mainChart.data.labels,
+      datasets: mainChart.data.datasets.map(ds => ({ ...ds, datalabels: { ...ds.datalabels, font: { size: FONT, weight: 'bold' } } })),
+    },
+    options: {
+      indexAxis: 'y',
+      responsive: false,
+      maintainAspectRatio: false,
+      animation: false,
+      devicePixelRatio: 1,
+      plugins: {
+        legend: { position: 'top', labels: { boxWidth: 12, font: { size: FONT, family: FF } } },
+        tooltip: { enabled: false },
+        datalabels: {},
+      },
+      scales: {
+        x: {
+          stacked: true,
+          max: 100,
+          title: { display: true, text: '% of locations', font: { size: FONT, family: FF } },
+          grid: { display: false },
+          ticks: { font: { size: FONT, family: FF } },
+        },
+        y: {
+          stacked: true,
+          ticks: { font: { size: FONT_Y, family: FF }, autoSkip: false },
+        },
+      },
+    },
+    plugins: [ChartDataLabels],
+  });
+
+  const dataUrl = chart.toBase64Image('image/png', 1);
+  chart.destroy();
+  document.body.removeChild(cv);
+  return dataUrl;
+}
+
 async function generateHistSocialCard(preset = 'landscape') {
   if (!histChart) return null;
   await document.fonts.ready;
@@ -2961,6 +3096,261 @@ async function generateHistSocialCard(preset = 'landscape') {
   return cv;
 }
 
+async function generateStripSocialCard(preset = 'landscape') {
+  if (!mainChart || !lastGroups.length) return null;
+  await document.fonts.ready;
+  const logoData = await loadCardLogo();
+  const logo = logoData?.img ?? null;
+  const headerColor = logoData?.bgColor ?? '#1e40af';
+
+  const PRESETS = { landscape:{W:1200,targetH:627}, square:{W:1080,targetH:1080}, portrait:{W:627,targetH:1200} };
+  const { W, targetH } = PRESETS[preset] ?? PRESETS.landscape;
+  const HEADER_H = 70;
+  const TITLE_H  = 130;
+  const LEGEND_H = 28;
+  const sc = W / 1200;
+  const hBrandFont = Math.max(15, Math.round(22 * sc));
+  const hDateFont  = Math.max(12, Math.round(18 * sc));
+  const titleFont  = Math.max(26, Math.round(40 * sc));
+  const subFont    = Math.max(13, Math.round(24 * sc));
+  const statsFont  = Math.max(12, Math.round(20 * sc));
+  const padX       = Math.max(18, Math.round(32 * sc));
+
+  const chartDispH = Math.max(300, lastGroups.length * 40, targetH - HEADER_H - TITLE_H - LEGEND_H);
+  const H = HEADER_H + TITLE_H + chartDispH + LEGEND_H;
+
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  // Header
+  ctx.fillStyle = headerColor;
+  ctx.fillRect(0, 0, W, HEADER_H);
+  const LOGO_SIZE = 62;
+  const logoX = 7;
+  if (logo) {
+    ctx.fillStyle = headerColor;
+    ctx.fillRect(logoX, (HEADER_H - LOGO_SIZE) / 2, LOGO_SIZE, LOGO_SIZE);
+    ctx.drawImage(logo, logoX, (HEADER_H - LOGO_SIZE) / 2, LOGO_SIZE, LOGO_SIZE);
+  }
+  const textX = logo ? logoX + LOGO_SIZE + 10 : padX;
+  ctx.font = `bold ${hBrandFont}px "Titillium Web", system-ui, sans-serif`;
+  ctx.fillStyle = '#ffffff';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('indoorco2map.com', textX, HEADER_H / 2);
+  const dateStr = new Date().toLocaleDateString('en', { month: 'long', day: 'numeric', year: 'numeric' });
+  ctx.font = `${hDateFont}px "Titillium Web", system-ui, sans-serif`;
+  ctx.fillStyle = 'rgba(255,255,255,0.72)';
+  ctx.textAlign = 'right';
+  ctx.fillText(dateStr, W - padX, HEADER_H / 2);
+  ctx.textAlign = 'left';
+
+  // Title + filter + stats
+  const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  const splitSuffix = { none:'', country:' by Country', type:' by Location Type', brand:' by Brand', location:' — Individual Locations', time:' by Time Period' };
+  let titleContext = '';
+  if (state.splitBy !== 'type' && state.locTypes.length === 1 && !state.locTypeExclude)
+    titleContext = ' in ' + cap(locTypeMS?.getLabel(state.locTypes[0]) || state.locTypes[0]);
+  else if (state.splitBy !== 'country' && state.countries.length === 1 && !state.countryExclude)
+    titleContext = ' in ' + cap(countryMS?.getLabel(state.countries[0]) || state.countries[0]);
+  const cardTitle = 'Indoor CO₂ Levels' + titleContext + (splitSuffix[state.splitBy] ?? '');
+
+  const fmtTs = ts => new Date(ts).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
+  const countryDesc = state.countries.length === 0 ? 'All countries'
+    : (state.countryExclude ? 'Excl. ' : '') + state.countries.map(v => countryMS?.getLabel(v) || v).join(', ');
+  const typeDesc = state.locTypes.length === 0 ? 'All location types'
+    : (state.locTypeExclude ? 'Excl. ' : '') + state.locTypes.map(v => locTypeMS?.getLabel(v) || v).join(', ');
+  const brandDesc = state.brands.length > 0
+    ? (state.brandExclude ? 'Excl. ' : '') + state.brands.map(v => brandMS?.getLabel(v) || v).join(', ') : null;
+  const dateDesc = fmtTs(Math.max(state.dateMin, globalDateMin)) + '–' + fmtTs(Math.min(state.dateMax, globalDateMax));
+  const minEntriesDesc = state.minEntries    > 1 ? `≥${state.minEntries} locations/category`       : null;
+  const minMeasDesc    = state.minMeasPerLoc > 1 ? `≥${state.minMeasPerLoc} measurements/location` : null;
+  const filterDesc = [countryDesc, typeDesc, brandDesc, dateDesc, minEntriesDesc, minMeasDesc].filter(Boolean).join(' · ');
+  const statsLine = (document.getElementById('chart-summary')?.innerText || '').trim().split('\n').map(s => s.trim()).filter(Boolean)[0] || '';
+
+  ctx.textBaseline = 'top';
+  ctx.font = `bold ${titleFont}px "Titillium Web", system-ui, sans-serif`;
+  ctx.fillStyle = '#111827';
+  ctx.fillText(cardTitle, padX, HEADER_H + 14);
+  ctx.font = `${subFont}px "Titillium Web", system-ui, sans-serif`;
+  ctx.fillStyle = '#6b7280';
+  ctx.fillText(filterDesc.slice(0, 130), padX, HEADER_H + 14 + 44);
+  ctx.font = `${statsFont}px "Titillium Web", system-ui, sans-serif`;
+  ctx.fillStyle = '#9ca3af';
+  ctx.fillText(statsLine.slice(0, 100), padX, HEADER_H + 14 + 44 + 28);
+
+  // Chart
+  const chartDataUrl = await renderExportStripChartImage(W, chartDispH);
+  const chartImg = new Image();
+  await new Promise(resolve => { chartImg.onload = resolve; chartImg.src = chartDataUrl; });
+  const chartY = HEADER_H + TITLE_H;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, chartY, W, chartDispH);
+  ctx.drawImage(chartImg, 0, chartY, W, chartDispH);
+
+  // Legend: 3 zone swatches + median marker
+  const legendY = chartY + chartDispH + 8;
+  const swatchSize = 13;
+  const legendItems = [
+    { color: '#648eff', label: 'Good (<800 ppm)' },
+    { color: '#ffb000', label: 'Moderate (800–1400 ppm)' },
+    { color: '#ff190c', label: 'Unhealthy (>1400 ppm)' },
+    { color: null,      label: '| = Median value' },
+  ];
+  ctx.font = `15px "Titillium Web", system-ui, sans-serif`;
+  ctx.textBaseline = 'middle';
+  let cx = padX;
+  legendItems.forEach((item, i) => {
+    if (i > 0) { ctx.fillStyle = '#374151'; ctx.fillText('   ', cx, legendY + swatchSize / 2); cx += ctx.measureText('   ').width; }
+    if (item.color) {
+      ctx.fillStyle = item.color;
+      ctx.fillRect(cx, legendY, swatchSize, swatchSize);
+    } else {
+      ctx.strokeStyle = '#374151';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(cx + swatchSize / 2, legendY);
+      ctx.lineTo(cx + swatchSize / 2, legendY + swatchSize);
+      ctx.stroke();
+    }
+    cx += swatchSize + 4;
+    ctx.fillStyle = '#374151';
+    ctx.fillText(item.label, cx, legendY + swatchSize / 2);
+    cx += ctx.measureText(item.label).width;
+  });
+
+  return cv;
+}
+
+async function generateStackedSocialCard(preset = 'landscape') {
+  if (!mainChart) return null;
+  await document.fonts.ready;
+  const logoData = await loadCardLogo();
+  const logo = logoData?.img ?? null;
+  const headerColor = logoData?.bgColor ?? '#1e40af';
+
+  const PRESETS = { landscape:{W:1200,targetH:627}, square:{W:1080,targetH:1080}, portrait:{W:627,targetH:1200} };
+  const { W, targetH } = PRESETS[preset] ?? PRESETS.landscape;
+  const HEADER_H = 70;
+  const TITLE_H  = 130;
+  const LEGEND_H = 28;
+  const sc = W / 1200;
+  const hBrandFont = Math.max(15, Math.round(22 * sc));
+  const hDateFont  = Math.max(12, Math.round(18 * sc));
+  const titleFont  = Math.max(26, Math.round(40 * sc));
+  const subFont    = Math.max(13, Math.round(24 * sc));
+  const statsFont  = Math.max(12, Math.round(20 * sc));
+  const padX       = Math.max(18, Math.round(32 * sc));
+
+  const nGroups = mainChart?.data?.labels?.length ?? 5;
+  const chartDispH = Math.max(300, nGroups * 55, targetH - HEADER_H - TITLE_H - LEGEND_H);
+  const H = HEADER_H + TITLE_H + chartDispH + LEGEND_H;
+
+  const cv = document.createElement('canvas');
+  cv.width = W; cv.height = H;
+  const ctx = cv.getContext('2d');
+
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W, H);
+
+  // Header
+  ctx.fillStyle = headerColor;
+  ctx.fillRect(0, 0, W, HEADER_H);
+  const LOGO_SIZE = 62;
+  const logoX = 7;
+  if (logo) {
+    ctx.fillStyle = headerColor;
+    ctx.fillRect(logoX, (HEADER_H - LOGO_SIZE) / 2, LOGO_SIZE, LOGO_SIZE);
+    ctx.drawImage(logo, logoX, (HEADER_H - LOGO_SIZE) / 2, LOGO_SIZE, LOGO_SIZE);
+  }
+  const textX = logo ? logoX + LOGO_SIZE + 10 : padX;
+  ctx.font = `bold ${hBrandFont}px "Titillium Web", system-ui, sans-serif`;
+  ctx.fillStyle = '#ffffff';
+  ctx.textBaseline = 'middle';
+  ctx.fillText('indoorco2map.com', textX, HEADER_H / 2);
+  const dateStr = new Date().toLocaleDateString('en', { month: 'long', day: 'numeric', year: 'numeric' });
+  ctx.font = `${hDateFont}px "Titillium Web", system-ui, sans-serif`;
+  ctx.fillStyle = 'rgba(255,255,255,0.72)';
+  ctx.textAlign = 'right';
+  ctx.fillText(dateStr, W - padX, HEADER_H / 2);
+  ctx.textAlign = 'left';
+
+  // Title + filter + stats
+  const cap = s => s ? s.charAt(0).toUpperCase() + s.slice(1) : s;
+  const scoreMode = state.iaqsGranularity === 'score';
+  let titleContext = '';
+  if (state.locTypes.length === 1 && !state.locTypeExclude)
+    titleContext = ' in ' + cap(locTypeMS?.getLabel(state.locTypes[0]) || state.locTypes[0]);
+  else if (state.countries.length === 1 && !state.countryExclude)
+    titleContext = ' in ' + cap(countryMS?.getLabel(state.countries[0]) || state.countries[0]);
+  const splitSuffix = { none:'', country:' by Country', type:' by Location Type', brand:' by Brand', location:' — Individual Locations', time:' by Time Period' };
+  const cardTitle = (scoreMode ? 'Indoor CO₂ Score Distribution (GO IAQS)' : 'Indoor CO₂ Category Distribution') + titleContext + (splitSuffix[state.splitBy] ?? '');
+
+  const fmtTs = ts => new Date(ts).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
+  const countryDesc = state.countries.length === 0 ? 'All countries'
+    : (state.countryExclude ? 'Excl. ' : '') + state.countries.map(v => countryMS?.getLabel(v) || v).join(', ');
+  const typeDesc = state.locTypes.length === 0 ? 'All location types'
+    : (state.locTypeExclude ? 'Excl. ' : '') + state.locTypes.map(v => locTypeMS?.getLabel(v) || v).join(', ');
+  const brandDesc = state.brands.length > 0
+    ? (state.brandExclude ? 'Excl. ' : '') + state.brands.map(v => brandMS?.getLabel(v) || v).join(', ') : null;
+  const dateDesc = fmtTs(Math.max(state.dateMin, globalDateMin)) + '–' + fmtTs(Math.min(state.dateMax, globalDateMax));
+  const minEntriesDesc = state.minEntries    > 1 ? `≥${state.minEntries} locations/category`       : null;
+  const minMeasDesc    = state.minMeasPerLoc > 1 ? `≥${state.minMeasPerLoc} measurements/location` : null;
+  const filterDesc = [countryDesc, typeDesc, brandDesc, dateDesc, minEntriesDesc, minMeasDesc].filter(Boolean).join(' · ');
+  const statsLine = (document.getElementById('chart-summary')?.innerText || '').trim().split('\n').map(s => s.trim()).filter(Boolean)[0] || '';
+
+  ctx.textBaseline = 'top';
+  ctx.font = `bold ${titleFont}px "Titillium Web", system-ui, sans-serif`;
+  ctx.fillStyle = '#111827';
+  ctx.fillText(cardTitle, padX, HEADER_H + 14);
+  ctx.font = `${subFont}px "Titillium Web", system-ui, sans-serif`;
+  ctx.fillStyle = '#6b7280';
+  ctx.fillText(filterDesc.slice(0, 130), padX, HEADER_H + 14 + 44);
+  ctx.font = `${statsFont}px "Titillium Web", system-ui, sans-serif`;
+  ctx.fillStyle = '#9ca3af';
+  ctx.fillText(statsLine.slice(0, 100), padX, HEADER_H + 14 + 44 + 28);
+
+  // Chart
+  const chartDataUrl = await renderExportStackedChartImage(W, chartDispH);
+  const chartImg = new Image();
+  await new Promise(resolve => { chartImg.onload = resolve; chartImg.src = chartDataUrl; });
+  const chartY = HEADER_H + TITLE_H;
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, chartY, W, chartDispH);
+  ctx.drawImage(chartImg, 0, chartY, W, chartDispH);
+
+  // Legend: 3 zone swatches
+  const legendY = chartY + chartDispH + 8;
+  const swatchSize = 13;
+  const zones = [
+    { color: '#648eff', label: scoreMode ? 'Good (Score 8–10)' : 'Good (<800 ppm)' },
+    { color: '#ffb000', label: scoreMode ? 'Moderate (Score 4–7)' : 'Moderate (800–1400 ppm)' },
+    { color: '#ff190c', label: scoreMode ? 'Unhealthy (Score 0–3)' : 'Unhealthy (>1400 ppm)' },
+  ];
+  ctx.font = `15px "Titillium Web", system-ui, sans-serif`;
+  ctx.textBaseline = 'middle';
+  let cx = padX;
+  zones.forEach((z, i) => {
+    if (i > 0) { ctx.fillStyle = '#374151'; ctx.fillText('   ', cx, legendY + swatchSize / 2); cx += ctx.measureText('   ').width; }
+    ctx.fillStyle = z.color;
+    ctx.fillRect(cx, legendY, swatchSize, swatchSize);
+    cx += swatchSize + 4;
+    ctx.fillStyle = '#374151';
+    ctx.fillText(z.label, cx, legendY + swatchSize / 2);
+    cx += ctx.measureText(z.label).width;
+  });
+  if (scoreMode) {
+    const note = '  (stripe pattern = score within category)';
+    ctx.fillStyle = '#9ca3af';
+    ctx.fillText(note, cx, legendY + swatchSize / 2);
+  }
+
+  return cv;
+}
+
 function generateHistAltText() {
   if (!histChart) return '';
   const showPct = state.histPct;
@@ -3013,6 +3403,61 @@ function generateHistAltText() {
     : datasets.map(ds => `${ds.label}: ${descDs(ds)}`).join(' ');
 
   return [header, filterLine, dataLine, binLines].filter(Boolean).join(' ');
+}
+
+function generateStripAltText() {
+  if (!mainChart || !lastGroups.length) return '';
+  const fmtTs = ts => new Date(ts).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
+  const splitLabel = { none:'', country:' by country', type:' by location type', brand:' by brand', location:' for individual locations', time:' by time period' };
+  const countryDesc = state.countries.length === 0 ? 'all countries'
+    : (state.countryExclude ? 'excl. ' : '') + state.countries.map(v => countryMS?.getLabel(v) || v).join(', ');
+  const typeDesc = state.locTypes.length === 0 ? 'all location types'
+    : (state.locTypeExclude ? 'excl. ' : '') + state.locTypes.map(v => locTypeMS?.getLabel(v) || v).join(', ');
+  const dateDesc = fmtTs(Math.max(state.dateMin, globalDateMin)) + '–' + fmtTs(Math.min(state.dateMax, globalDateMax));
+  const filterStr = [countryDesc, typeDesc, dateDesc].filter(Boolean).join('; ');
+  const statsLine = (document.getElementById('chart-summary')?.innerText || '').trim().split('\n')[0]?.trim() || '';
+  const groupLines = lastGroups.map(g => {
+    const med = median(g.values);
+    return `${g.label} (n=${g.count}): median ${isFinite(med) ? Math.round(med) + ' ppm' : 'n/a'}`;
+  }).join('. ');
+  return [
+    `Strip chart of indoor CO₂ levels${splitLabel[state.splitBy] ? ' ' + splitLabel[state.splitBy] : ''}. Each dot represents one measurement, coloured by GO IAQS air quality category (Good <800 ppm, Moderate 800–1400 ppm, Unhealthy >1400 ppm). Vertical bar marks median per group.`,
+    statsLine ? `Data: ${statsLine}.` : '',
+    `Filters: ${filterStr}.`,
+    groupLines + '.',
+  ].filter(Boolean).join(' ');
+}
+
+function generateStackedAltText() {
+  if (!mainChart) return '';
+  const scoreMode = state.iaqsGranularity === 'score';
+  const fmtTs = ts => new Date(ts).toLocaleDateString('en', { month: 'short', day: 'numeric', year: 'numeric' });
+  const countryDesc = state.countries.length === 0 ? 'all countries'
+    : (state.countryExclude ? 'excl. ' : '') + state.countries.map(v => countryMS?.getLabel(v) || v).join(', ');
+  const typeDesc = state.locTypes.length === 0 ? 'all location types'
+    : (state.locTypeExclude ? 'excl. ' : '') + state.locTypes.map(v => locTypeMS?.getLabel(v) || v).join(', ');
+  const dateDesc = fmtTs(Math.max(state.dateMin, globalDateMin)) + '–' + fmtTs(Math.min(state.dateMax, globalDateMax));
+  const filterStr = [countryDesc, typeDesc, dateDesc].filter(Boolean).join('; ');
+  const statsLine = (document.getElementById('chart-summary')?.innerText || '').trim().split('\n')[0]?.trim() || '';
+  const labels = mainChart.data.labels || [];
+  const datasets = mainChart.data.datasets || [];
+  const groupLines = labels.map((lbl, li) => {
+    const name = Array.isArray(lbl) ? lbl[0] : lbl;
+    if (scoreMode) {
+      const goodPct  = datasets.filter((_, di) => di <= 2).reduce((s, ds) => s + (ds.data[li] || 0), 0).toFixed(1);
+      const modPct   = datasets.filter((_, di) => di >= 3 && di <= 6).reduce((s, ds) => s + (ds.data[li] || 0), 0).toFixed(1);
+      const unhlPct  = datasets.filter((_, di) => di >= 7).reduce((s, ds) => s + (ds.data[li] || 0), 0).toFixed(1);
+      return `${name}: Good ${goodPct}%, Moderate ${modPct}%, Unhealthy ${unhlPct}%`;
+    } else {
+      return `${name}: Good ${(datasets[0]?.data[li] || 0).toFixed(1)}%, Moderate ${(datasets[1]?.data[li] || 0).toFixed(1)}%, Unhealthy ${(datasets[2]?.data[li] || 0).toFixed(1)}%`;
+    }
+  }).join('. ');
+  return [
+    `Stacked bar chart of indoor CO₂ distribution by GO IAQS ${scoreMode ? 'score (0–10)' : 'air quality category'}. Bars show % of locations in each category per group, sorted best to worst.`,
+    statsLine ? `Data: ${statsLine}.` : '',
+    `Filters: ${filterStr}.`,
+    groupLines + '.',
+  ].filter(Boolean).join(' ');
 }
 
 function generateMainAltText() {
@@ -3468,8 +3913,21 @@ function wireEvents() {
     btn.disabled = true;
     btn.textContent = '…';
     try {
-      const canvas = await generateSocialCard('landscape');
-      if (canvas) showExportModal(canvas, generateMainAltText(), preset => generateSocialCard(preset));
+      let canvas, altText, genFn;
+      if (state.mainChartType === 'strip') {
+        canvas = await generateStripSocialCard('landscape');
+        altText = generateStripAltText();
+        genFn = p => generateStripSocialCard(p);
+      } else if (state.mainChartType === 'stacked') {
+        canvas = await generateStackedSocialCard('landscape');
+        altText = generateStackedAltText();
+        genFn = p => generateStackedSocialCard(p);
+      } else {
+        canvas = await generateSocialCard('landscape');
+        altText = generateMainAltText();
+        genFn = p => generateSocialCard(p);
+      }
+      if (canvas) showExportModal(canvas, altText, genFn);
     } finally {
       btn.disabled = false;
       btn.textContent = 'Share';

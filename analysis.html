@@ -161,7 +161,7 @@
 
   <!-- Display options -->
   <section class="an-panel">
-    <div class="an-panel-title">Display</div>
+    <div class="an-panel-title">Group &amp; Sort</div>
 
     <div class="filter-row">
       <span style="font-size:0.85rem;color:#374151;white-space:nowrap">Split by:</span>
@@ -204,26 +204,6 @@
       </select>
     </div>
 
-    <div class="filter-row">
-      <div class="radio-group">
-        <label><input type="radio" name="point-mode" id="point-mode-none" value="none"> Boxplot only</label>
-        <label><input type="radio" name="point-mode" id="point-mode-outliers" value="outliers"> Show outliers</label>
-        <label><input type="radio" name="point-mode" id="point-mode-all" value="all" checked> Show all individual values</label>
-      </div>
-      <label class="scatter-toggle" style="margin-left:12px">
-        <input type="checkbox" id="show-median">
-        Show median value
-      </label>
-    </div>
-
-    <div class="filter-row">
-      <span style="font-size:0.85rem;color:#374151;white-space:nowrap">Y-axis:</span>
-      <div class="radio-group">
-        <label><input type="radio" name="yaxis" value="co2" checked> CO₂ (ppm)</label>
-        <label><input type="radio" name="yaxis" value="rebreathed"> Rebreathed air %</label>
-        <label><input type="radio" name="yaxis" value="both"> Both</label>
-      </div>
-    </div>
   </section>
 
   <!-- Main chart -->
@@ -240,6 +220,27 @@
       <div class="radio-group" id="iaqs-granularity-group" style="display:none">
         <label><input type="radio" name="iaqs-granularity" value="zone" checked> 3 categories (GO IAQS)</label>
         <label><input type="radio" name="iaqs-granularity" value="score"> Score 10–0 (GO IAQS)</label>
+      </div>
+    </div>
+    <div id="boxplot-options">
+      <div class="filter-row">
+        <div class="radio-group">
+          <label><input type="radio" name="point-mode" id="point-mode-none" value="none"> Boxplot only</label>
+          <label><input type="radio" name="point-mode" id="point-mode-outliers" value="outliers"> Show outliers</label>
+          <label><input type="radio" name="point-mode" id="point-mode-all" value="all" checked> Show all individual values</label>
+        </div>
+        <label class="scatter-toggle" style="margin-left:12px">
+          <input type="checkbox" id="show-median">
+          Show median value
+        </label>
+      </div>
+      <div class="filter-row">
+        <span style="font-size:0.85rem;color:#374151;white-space:nowrap">Y-axis:</span>
+        <div class="radio-group">
+          <label><input type="radio" name="yaxis" value="co2" checked> CO₂ (ppm)</label>
+          <label><input type="radio" name="yaxis" value="rebreathed"> Rebreathed air %</label>
+          <label><input type="radio" name="yaxis" value="both"> Both</label>
+        </div>
       </div>
     </div>
     <div id="chart-summary"></div>

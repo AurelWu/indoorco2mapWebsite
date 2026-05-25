@@ -23,6 +23,19 @@ body {
   color: #111;
 }
 
+/* ── Data notice banner ──────────────────────────────── */
+
+#data-notice {
+  background: #fffbeb;
+  border: 1px solid #fcd34d;
+  border-radius: 6px;
+  padding: 8px 14px;
+  margin-bottom: 12px;
+  font-size: 0.82rem;
+  color: #78350f;
+  line-height: 1.5;
+}
+
 /* ── Panel card ──────────────────────────────────────── */
 
 .an-panel {

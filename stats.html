@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Activity Stats — Indoor CO₂ Atlas</title>
+  <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="./css/styles.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns"></script>
+  <style>
+    html, body {
+      height: auto;
+      overflow: auto;
+    }
+    body {
+      background: #f3f4f6;
+      font-family: 'Titillium Web', sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    #stats-wrap {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 12px 16px 32px;
+    }
+    #stats-wrap h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin: 12px 0 14px;
+      color: #111;
+    }
+    .stat-panel {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .stat-panel-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: #6b7280;
+      margin-bottom: 10px;
+    }
+    .chart-wrap {
+      position: relative;
+      height: 350px;
+    }
+    #stats-loading {
+      text-align: center;
+      padding: 40px;
+      color: #6b7280;
+      font-size: 1rem;
+    }
+    #stats-error {
+      display: none;
+      text-align: center;
+      padding: 20px;
+      color: #dc2626;
+      font-size: 0.9rem;
+    }
+    .range-btn {
+      font-family: 'Titillium Web', sans-serif;
+      font-size: 0.78rem;
+      padding: 3px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      background: #fff;
+      color: #374151;
+      cursor: pointer;
+    }
+    .range-btn.active {
+      background: #2563eb;
+      border-color: #2563eb;
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav>
+  <ul class="navbar">
+    <li class="navbar-icon">
+      <a href="https://indoorco2map.com">
+        <img src="images/icon512_512.png" alt="Indoor CO₂ Map" class="navbar-logo">
+      </a>
+    </li>
+
+    <div class="dropdown">
+      <button onclick="this.nextElementSibling.classList.toggle('show')" class="dropbtn">Menu</button>
+      <div class="dropdown-content">
+        <a href="https://indoorco2map.com/transit.html">Public Transit</a>
+        <a href="https://www.indoorco2map.com/BoxPlotLocationTypes.html">Results by Location Type</a>
+        <a href="analysis.html">Data Analysis</a>
+        <a href="https://www.indoorco2map.com/supermarketdetails.html">Supermarket Charts (Germany)</a>
+        <a href="stats.html"><strong>Activity Stats</strong></a>
+        <a href="https://indoorco2map.com/frequencyMapNUTS1.html">Activity Map by NUTS1 Region</a>
+        <a href="https://www.indoorco2map.com/allSupermarkets.html">All Supermarkets (Germany)</a>
+        <a href="blog.html">Blog</a>
+        <a href="#" onclick="event.preventDefault();window.location='https://indoorco2map.com/chartdata/IndoorCO2MapData.zip'">
+          <i class="fas fa-download"></i> Download Data
+        </a>
+      </div>
+    </div>
+
+    <a href="index.html" class="navbar-back"><i class="fas fa-map-marker-alt" style="margin-right:5px"></i> Map</a>
+  </ul>
+</nav>
+
+<!-- Main content -->
+<div id="stats-wrap">
+  <h1>Activity Stats</h1>
+
+  <div id="stats-loading">Loading charts…</div>
+  <div id="stats-error"></div>
+
+  <div class="stat-panel" id="panel-daily" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+      <div class="stat-panel-title" style="margin-bottom:0">Daily Measurements</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="daily-range-btns">
+        <button class="range-btn active" data-months="0">All time</button>
+        <button class="range-btn" data-months="12">12 months</button>
+        <button class="range-btn" data-months="6">6 months</button>
+        <button class="range-btn" data-months="3">3 months</button>
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="dailyActivityChart"></canvas></div>
+  </div>
+
+  <div class="stat-panel" id="panel-avg" style="display:none">
+    <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+      <div class="stat-panel-title" style="margin-bottom:0">Moving Average</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap" id="avg-window-btns">
+        <button class="range-btn active" data-days="7">7 days</button>
+        <button class="range-btn" data-days="14">14 days</button>
+        <button class="range-btn" data-days="30">30 days</button>
+        <button class="range-btn" data-days="90">90 days</button>
+        <button class="range-btn" data-days="180">180 days</button>
+        <button class="range-btn" data-days="360">360 days</button>
+      </div>
+    </div>
+    <div class="chart-wrap"><canvas id="sevenDayAverageChart"></canvas></div>
+  </div>
+
+  <div class="stat-panel" id="panel-types" style="display:none">
+    <div class="stat-panel-title">Locations by Type</div>
+    <div class="chart-wrap"><canvas id="countOfMeasuredLocationTypesChart"></canvas></div>
+  </div>
+
+  <div class="stat-panel" id="panel-countries" style="display:none">
+    <div class="stat-panel-title">Measurements by Country</div>
+    <div class="chart-wrap"><canvas id="countByCountryChart"></canvas></div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', async () => {
+  try {
+    const [dailyActivityData, dailyTransportActivityData, countOfMeasuredLocationTypesData, countByCountryData] = await Promise.all([
+      (await fetch('https://indoorco2map.com/chartdata/dailyactivitychartdata.json')).json(),
+      (await fetch('https://indoorco2map.com/chartdata/dailytransportactivitychartdata.json')).json(),
+      (await fetch('https://indoorco2map.com/chartdata/CountOfMeasuredLocationTypes.json')).json(),
+      (await fetch('https://indoorco2map.com/chartdata/CountByCountry.json')).json()
+    ]);
+
+    document.getElementById('stats-loading').style.display = 'none';
+    ['panel-daily','panel-avg','panel-types','panel-countries'].forEach(id =>
+      document.getElementById(id).style.display = '');
+
+    const dailyActivityLabels = dailyActivityData.map(entry => entry.date);
+    const dailyActivityEntries = dailyActivityData.map(entry => entry.daily_entries);
+    const dailyTransportActivityLabels = dailyTransportActivityData.map(entry => entry.date);
+    const dailyTransportActivityEntries = dailyTransportActivityData.map(entry => entry.daily_entries);
+
+    function mergeAndAlignData(activityLabels, activityData, transportLabels, transportData) {
+      const mergedLabels = [...new Set([...activityLabels, ...transportLabels])].sort();
+      return {
+        mergedLabels,
+        alignedActivityData: mergedLabels.map(date => activityLabels.includes(date) ? activityData[activityLabels.indexOf(date)] : 0),
+        alignedTransportData: mergedLabels.map(date => transportLabels.includes(date) ? transportData[transportLabels.indexOf(date)] : 0)
+      };
+    }
+
+    const { mergedLabels, alignedActivityData, alignedTransportData } = mergeAndAlignData(
+      dailyActivityLabels, dailyActivityEntries, dailyTransportActivityLabels, dailyTransportActivityEntries
+    );
+
+    // Chart 1: Daily Activity
+    function filterByMonths(labels, datasets, months) {
+      if (!months) return { labels, datasets };
+      const cutoff = new Date();
+      cutoff.setMonth(cutoff.getMonth() - months);
+      const cutStr = cutoff.toISOString().slice(0, 10);
+      const start = labels.findIndex(l => l >= cutStr);
+      if (start < 0) return { labels, datasets };
+      return {
+        labels: labels.slice(start),
+        datasets: datasets.map(ds => ({ ...ds, data: ds.data.slice(start) })),
+      };
+    }
+
+    const dailyChart = new Chart(document.getElementById('dailyActivityChart').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: mergedLabels,
+        datasets: [
+          { label: 'Building Entries',  data: alignedActivityData,  backgroundColor: 'rgba(75, 192, 192, 0.5)', stack: 'Stack 0' },
+          { label: 'Transport Entries', data: alignedTransportData, backgroundColor: 'rgba(255, 99, 132, 0.5)', stack: 'Stack 0' },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { stacked: true, title: { display: true, text: 'Date' } },
+          y: { stacked: true, title: { display: true, text: 'Entries' }, beginAtZero: true }
+        }
+      }
+    });
+
+    document.getElementById('daily-range-btns').addEventListener('click', e => {
+      const btn = e.target.closest('.range-btn');
+      if (!btn) return;
+      document.querySelectorAll('.range-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const months = +btn.dataset.months;
+      // always slice from the immutable originals
+      const { labels, datasets } = filterByMonths(mergedLabels, [
+        { data: alignedActivityData },
+        { data: alignedTransportData },
+      ], months);
+      dailyChart.data.labels = labels;
+      dailyChart.data.datasets[0].data = datasets[0].data;
+      dailyChart.data.datasets[1].data = datasets[1].data;
+      dailyChart.update();
+    });
+
+    // Chart 2: Moving Average
+    function calculateMovingAverage(data, window) {
+      return data.map((_, i) => i < window - 1 ? null
+        : data.slice(i - window + 1, i + 1).reduce((acc, val) => acc + val, 0) / window);
+    }
+
+    const avgChart = new Chart(document.getElementById('sevenDayAverageChart').getContext('2d'), {
+      type: 'line',
+      data: {
+        labels: mergedLabels,
+        datasets: [
+          {
+            label: 'Transport Entries (Moving Average)',
+            data: calculateMovingAverage(alignedTransportData, 7),
+            borderColor: 'rgba(255, 99, 132, 1)',
+            backgroundColor: 'rgba(255, 99, 132, 0.2)',
+            fill: true,
+            stack: 'stack0'
+          },
+          {
+            label: 'Building Entries (Moving Average)',
+            data: calculateMovingAverage(alignedActivityData, 7),
+            borderColor: 'rgba(75, 192, 192, 1)',
+            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+            fill: true,
+            stack: 'stack0'
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { type: 'time', time: { unit: 'day' }, title: { display: true, text: 'Date' } },
+          y: { stacked: true, title: { display: true, text: 'Moving Average Entries (Stacked)' }, beginAtZero: true }
+        }
+      }
+    });
+
+    document.getElementById('avg-window-btns').addEventListener('click', e => {
+      const btn = e.target.closest('.range-btn');
+      if (!btn) return;
+      document.querySelectorAll('#avg-window-btns .range-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const w = +btn.dataset.days;
+      avgChart.data.datasets[0].data = calculateMovingAverage(alignedTransportData, w);
+      avgChart.data.datasets[1].data = calculateMovingAverage(alignedActivityData, w);
+      avgChart.options.scales.y.title.text = `${w}-Day Moving Average Entries (Stacked)`;
+      avgChart.update();
+    });
+
+    // Chart 3: Location Types
+    new Chart(document.getElementById('countOfMeasuredLocationTypesChart').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: countOfMeasuredLocationTypesData.map(entry => entry.osmtag),
+        datasets: [{ label: 'Count of Measured Location Types', data: countOfMeasuredLocationTypesData.map(entry => entry.c), backgroundColor: 'rgba(54, 162, 235, 0.5)' }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { title: { display: true, text: 'Location Type' } },
+          y: { title: { display: true, text: 'Count' }, beginAtZero: true }
+        }
+      }
+    });
+
+    // Chart 4: Countries — top 20 + Other
+    const sortedCountries = [...countByCountryData].sort((a, b) => b.count - a.count);
+    const top20 = sortedCountries.slice(0, 20);
+    const otherCount = sortedCountries.slice(20).reduce((s, e) => s + e.count, 0);
+    if (otherCount > 0) top20.push({ countryname: 'Other', count: otherCount });
+    new Chart(document.getElementById('countByCountryChart').getContext('2d'), {
+      type: 'bar',
+      data: {
+        labels: top20.map(entry => entry.countryname),
+        datasets: [{ label: 'Building Measurement Count by Country', data: top20.map(entry => entry.count), backgroundColor: 'rgba(153, 102, 255, 0.5)' }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { title: { display: true, text: 'Country' } },
+          y: { title: { display: true, text: 'Measurement Count' }, beginAtZero: true }
+        }
+      }
+    });
+
+  } catch (error) {
+    document.getElementById('stats-loading').style.display = 'none';
+    const errEl = document.getElementById('stats-error');
+    errEl.style.display = '';
+    errEl.textContent = 'Error loading chart data. Please try refreshing the page.';
+    console.error('Error loading data:', error);
+  }
+});
+</script>
+</body>
+</html>

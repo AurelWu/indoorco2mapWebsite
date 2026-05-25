@@ -439,6 +439,8 @@ function renderMainChart(groups) {
   if (granGroup)  granGroup.style.display  = showGranularity ? '' : 'none';
   const bpOpts = document.getElementById('boxplot-options');
   if (bpOpts)     bpOpts.style.display     = isBoxplot ? '' : 'none';
+  const nNote = document.getElementById('chart-n-note');
+  if (nNote)      nNote.style.display      = isBoxplot ? 'none' : '';
 
   if (state.mainChartType === 'strip')   return renderStripChart(groups);
   if (state.mainChartType === 'stacked') return renderStackedZoneChart(groups);
@@ -675,7 +677,7 @@ function renderStackedZoneChart(groups) {
       display: ctx => ctx.dataset.data[ctx.dataIndex] >= 5,
       color: '#fff',
       font: { size: 13, weight: 'bold' },
-      formatter: v => v + '%',
+      formatter: v => Math.round(v) + '%',
       anchor: 'center',
       align: 'center',
     },
@@ -3347,6 +3349,12 @@ async function generateStackedSocialCard(preset = 'landscape') {
     ctx.fillStyle = '#9ca3af';
     ctx.fillText(note, cx, legendY + swatchSize / 2);
   }
+
+  ctx.font = `13px "Titillium Web", system-ui, sans-serif`;
+  ctx.fillStyle = '#9ca3af';
+  ctx.textAlign = 'right';
+  ctx.fillText('n = number of locations', W - padX, legendY + swatchSize / 2);
+  ctx.textAlign = 'left';
 
   return cv;
 }

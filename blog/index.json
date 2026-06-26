@@ -1,5 +1,11 @@
 [
   {
+    "slug": "interceptFund",
+    "title": "Regulation is all you need",
+    "date": "2026-06-26",
+    "summary": "A critique of the Intercept Fund: the technology already exists — what is missing is the regulation, awareness, and policy groundwork that would actually pull it into use."
+  },
+  {
     "slug": "techStack",
     "title": "The Tech Stack of IndoorCO2Map.com",
     "date": "2025-05-11",

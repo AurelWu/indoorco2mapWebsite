@@ -1,6 +1,6 @@
 # Regulation is all you need
 
-The Intercept Fund has the right goal. I just think they are focusing too much on technology, and not enough on the thing that will decide whether any of that technology is actually used: regulation.
+The Intercept Fund has the right goal. I just think they are focusing too much on technology, and not enough on the thing that will decide whether any of that technology is actually used: regulation. If you have not read about their approach I suggest you take a look at <a href="https://www.interceptfund.com/" target="\_blank" rel="noopener noreferrer">their website</a> before reading this Essay.
 
 ## Before I start
 
@@ -14,7 +14,7 @@ Someone has to lay the foundations before all the existing and emerging technolo
 
 So yes, I do think the approach is not ideal, but only for the situation we are actually in. Everything on their list is worth doing. But technology will only be impactful once regulation, public awareness, standards, and institutional demand exist to pull it into the real world.
 
-One caveat before I go on: if Intercept has information that other emerging initiatives are already pushing the regulation and awareness side, and simply have not gone public yet, then my critique falls away, same holds true if the intercept is planning to way more on the policy side of things then their website and blogpost reveals. I would be very glad if everything that follows were obsolete.
+One caveat before I go on: if Intercept has information that other emerging initiatives are already pushing the regulation and awareness side, and simply have not gone public yet, then my critique falls away, same holds true if the intercept is planning to do way more on the policy side of things then their website and blogpost reveals. I would be very glad if everything that follows were obsolete.
 
 ## Technology Is Not the Bottleneck
 
@@ -26,7 +26,7 @@ What struck me while reading their launch essay is that they have already made m
 
 I agree with almost all of that. Which is exactly why the allocation of their attention puzzles me.
 
-If the technology is already there, then technology is not the bottleneck. Implementation — or in their terms demand — is lacking. And demand is missing for a very specific reason: clean indoor air has all conditions for a textbook market failure. No product, however elegant, can repair that on its own. I will expand on the market failures in the next chapter.
+If the technology is already there, then technology is not the bottleneck. Implementation, or in their terms demand, is lacking. And demand is missing for a very specific reason: clean indoor air has all conditions for a textbook market failure. No product, however elegant, can repair that on its own. I will expand on the market failures in the next chapter.
 
 I model energy markets and work on decarbonisation pathways aimed at guiding policy for a living. Two lessons from that world have stayed with me. The first is that a short, well-aimed policy paper can move billions and change what an entire country decides to do. The second is that gigantic sums, from companies and governments alike, can be poured into perfectly good technology and achieve very little, simply because the correct surrounding conditions were never put in place.
 
@@ -86,9 +86,9 @@ So yes, evidence matters. Of course we should measure. Of course we should study
 
 The right standard is not: has every outcome been proven beyond clinical doubt? The right standard is closer to: is this a low-risk intervention with plausible mechanisms, measurable delivery, multiple lines of supporting evidence, positive expected value under reasonable assumptions, and a strong equity case for public action?
 
-That is a normal infrastructure question, but also a normal public-interest question. Cost-benefit analysis always contains uncertainty. Energy-system models contain uncertainty. Transport-demand models contain uncertainty. Climate-adaptation models contain uncertainty. But governments still use them, because the alternative is not certainty. The alternative is pretending that doing nothing is neutral, when it also has costs — and those costs are not evenly distributed.
+That is a normal infrastructure question, but also a normal public-interest question. Cost-benefit analysis always contains uncertainty. Energy-system models contain uncertainty. Transport-demand models contain uncertainty. Climate-adaptation models contain uncertainty. But governments still use them, because the alternative is not certainty. The alternative is pretending that doing nothing is neutral, when it also has costs, and those costs are not evenly distributed.
 
-Bringing most public buildings up to sensible ventilation and filtration levels is not wildly expensive compared with the social cost of respiratory disease, poor concentration, sick days, reduced learning, and pandemic vulnerability. Even if you stay cautious about the disease numbers, the ordinary benefits — better concentration, fewer headaches, fewer sick days, better learning, and greater resilience during heat waves and smoke events — already justify action. The equity argument makes that case stronger, not weaker.
+Bringing most public buildings up to sensible ventilation and filtration levels is not wildly expensive compared with the social cost of respiratory disease, poor concentration, sick days, reduced learning, and pandemic vulnerability. Even if you stay cautious about the disease numbers, the ordinary benefits like better concentration, fewer headaches, fewer sick days, better learning, and greater resilience during heat waves and smoke events already justify action. The equity argument makes that case stronger, not weaker.
 
 A government can behave here like a venture investor: back a portfolio of low-risk interventions with positive expected value, accept that some effects will be smaller than hoped, and still come out well ahead. But it should also behave like a government: protect people in the shared spaces where they cannot protect themselves, set minimum standards, and make sure the benefits of clean air do not depend on income, bargaining power, or postcode. You do not need absolute clinical proof to justify something cheap, useful, measurable, mostly harmless, and unequally needed. Demanding that level of certainty creates its own harm, because every year of delay has an opportunity cost.
 
@@ -140,10 +140,11 @@ But if the plan is mostly to de-risk products, generate more evidence, and hope 
 
 The main bottleneck is not that humanity lacks air-cleaning tools. The main bottleneck is that nobody is required to care.
 
-That is why regulation is all you need — not literally, of course, but strategically. Regulation creates the market. Regulation forces monitoring. Regulation assigns responsibility. Regulation gives good suppliers a reason to scale. Regulation turns clean air from a nice-to-have into a basic expectation.
+That is why regulation is all you need, not literally, of course, but strategically. Regulation creates the market. Regulation forces monitoring. Regulation assigns responsibility. Regulation gives good suppliers a reason to scale. Regulation turns clean air from a nice-to-have into a basic expectation.
 
 For what it is worth, I built IndoorCO2Map, a citizen-science platform that maps indoor CO2 in public spaces, in my spare time and with no budget at all. I will say this plainly, even if it sounds arrogant: if Intercept sticks too closely to the path it has laid out, I think there is a real chance that small, scrappy community projects like this end up doing more to shift public expectations around indoor air than the Intercept Fund does.
 
 I would much rather be wrong about that.
 
 But if I am not, the reason will be simple: technology does not deploy itself. Markets do not appear by magic. And clean air, like clean water, will not become normal until society decides to make it normal.
+

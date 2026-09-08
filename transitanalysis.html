@@ -1,0 +1,385 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Public Transit Analysis — Indoor CO₂ Atlas</title>
+  <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="./css/styles.css" />
+  <link rel="stylesheet" href="./css/analysis.css" />
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@sgratzl/chartjs-chart-boxplot@4.4.1/build/index.umd.min.js"></script>
+
+  <style>
+    /* page-specific bits only; the rest comes from analysis.css */
+    #tr-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    #tr-table th, #tr-table td { padding: 5px 8px; border-bottom: 1px solid #e5e7eb; text-align: right; }
+    #tr-table th:first-child, #tr-table td:first-child { text-align: left; }
+    #tr-table th { color: #6b7280; font-weight: 600; font-size: 0.75rem;
+                   text-transform: uppercase; letter-spacing: 0.04em; cursor: pointer; white-space: nowrap; }
+    #tr-table th.sorted::after { content: ' \25BE'; }
+    #tr-table th.sorted.asc::after { content: ' \25B4'; }
+    #tr-table tbody tr:hover { background: #f9fafb; }
+    .tr-zone-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 4px; }
+    .tr-hint { font-size: 0.8rem; color: #6b7280; margin: 4px 0 2px; line-height: 1.5; }
+    .tr-date-inputs input[type=date] { font-family: inherit; font-size: 0.85rem; padding: 3px 6px;
+                                       border: 1px solid #d1d5db; border-radius: 4px; }
+
+    /* Small info icon with hover/focus explanation bubble */
+    .tr-info { position: relative; display: inline-flex; align-items: center; justify-content: center;
+               width: 14px; height: 14px; margin-left: 5px; border-radius: 50%;
+               background: #9ca3af; color: #fff; font-size: 10px; font-weight: 700;
+               font-style: italic; font-family: Georgia, serif; cursor: help; flex: none; }
+    .tr-info:hover, .tr-info:focus { background: #4b5563; outline: none; }
+    .tr-info-bubble { position: absolute; bottom: calc(100% + 8px); left: 50%; transform: translateX(-50%);
+                      width: 320px; max-width: 78vw; padding: 10px 12px; border-radius: 6px;
+                      background: #1f2937; color: #f3f4f6; font-size: 0.78rem; font-weight: 400;
+                      font-style: normal; font-family: inherit; line-height: 1.5; text-align: left;
+                      box-shadow: 0 4px 14px rgba(0,0,0,0.25); opacity: 0; visibility: hidden;
+                      transition: opacity 0.12s; z-index: 50; pointer-events: none; }
+    .tr-info-bubble::after { content: ''; position: absolute; top: 100%; left: 50%; margin-left: -5px;
+                             border: 5px solid transparent; border-top-color: #1f2937; }
+    .tr-info:hover .tr-info-bubble, .tr-info:focus .tr-info-bubble { opacity: 1; visibility: visible; }
+  </style>
+</head>
+<body>
+
+<div id="an-loading" style="display:flex">
+  <div id="an-loading-inner">
+    <span class="spinner">&#8987;</span>
+    Loading data&hellip;
+    <div id="an-error" style="display:none"></div>
+    <button id="an-retry-btn" style="display:none">Retry</button>
+  </div>
+</div>
+
+<nav>
+  <ul class="navbar">
+    <li class="navbar-icon">
+      <a href="https://indoorco2map.com">
+        <img src="images/icon512_512.png" alt="Indoor CO&#8322; Map" class="navbar-logo">
+      </a>
+    </li>
+
+    <div class="dropdown">
+      <button id="menu-btn" class="dropbtn">Menu</button>
+      <div class="dropdown-content">
+        <a href="https://indoorco2map.com/transit.html">Public Transit</a>
+        <a href="https://www.indoorco2map.com/BoxPlotLocationTypes.html">Results by Location Type</a>
+        <a href="analysis.html">Data Analysis (Buildings)</a>
+        <a href="transitanalysis.html"><strong>Data Analysis (Public Transit)</strong></a>
+        <a href="https://www.indoorco2map.com/supermarketdetails.html">Supermarket Charts (Germany)</a>
+        <a href="stats.html">Activity Stats</a>
+        <a href="https://indoorco2map.com/frequencyMapNUTS1.html">Activity Map by NUTS1 Region</a>
+        <a href="https://www.indoorco2map.com/blog.html">Blog</a>
+      </div>
+    </div>
+
+    <a href="index.html" class="navbar-back"><i class="fas fa-map-marker-alt" style="margin-right:5px"></i> Map</a>
+  </ul>
+</nav>
+
+<div id="analysis-wrap">
+  <div id="data-notice">
+    <strong>Note:</strong> This data is not a representative sample. Voluntarily contributed measurements may carry
+    various biases, potentially towards both better and worse CO&#8322; readings than typical. A journey is measured
+    for as long as the contributor stays on board, so it does not cover a whole line.
+  </div>
+
+  <!-- Filters -->
+  <section class="an-panel">
+    <div class="an-panel-title">Filters</div>
+
+    <div class="filter-row">
+      <label class="filter-label">
+        <span>Vehicle Type</span>
+        <div class="filter-mode-wrap">
+          <button class="filter-mode-btn" id="mode-mode" title="Switch between Include and Exclude">=</button>
+        </div>
+      </label>
+
+      <label class="filter-label">
+        <span>Network</span>
+        <div class="filter-mode-wrap">
+          <button class="filter-mode-btn" id="network-mode" title="Switch between Include and Exclude">=</button>
+        </div>
+      </label>
+
+      <label class="filter-label">
+        <span>Line</span>
+        <div class="filter-mode-wrap">
+          <button class="filter-mode-btn" id="line-mode" title="Switch between Include and Exclude">=</button>
+        </div>
+      </label>
+
+      <label class="filter-label">
+        <span>Country</span>
+        <div class="filter-mode-wrap">
+          <button class="filter-mode-btn" id="country-mode" title="Switch between Include and Exclude">=</button>
+        </div>
+      </label>
+    </div>
+  </section>
+
+  <!-- Time filters -->
+  <section class="an-panel collapsed">
+    <div class="an-panel-title">Time Filters</div>
+
+    <div class="filter-row tr-date-inputs">
+      <span style="font-size:0.85rem;color:#374151;white-space:nowrap">Date range:</span>
+      <input type="date" id="date-from">
+      <span style="font-size:0.85rem;color:#374151">to</span>
+      <input type="date" id="date-to">
+      <div class="date-preset-btns" style="margin-left:6px">
+        <button id="preset-all">All</button>
+        <button id="preset-12m">Last 12 m</button>
+        <button id="preset-6m">Last 6 m</button>
+      </div>
+    </div>
+
+    <div class="time-filter-group">
+      <div class="time-filter-label">
+        Months
+        <button class="chip-ctrl" data-action="all" data-group="months">All</button>
+        <button class="chip-ctrl" data-action="none" data-group="months">None</button>
+      </div>
+      <div class="chip-group" id="month-chips"></div>
+    </div>
+
+    <div class="time-filter-group">
+      <div class="time-filter-label">
+        Days of Week
+        <button class="chip-ctrl" data-action="all" data-group="weekdays">All</button>
+        <button class="chip-ctrl" data-action="none" data-group="weekdays">None</button>
+      </div>
+      <div class="chip-group" id="weekday-chips"></div>
+    </div>
+
+    <div class="time-filter-group">
+      <div class="time-filter-label">
+        Hours (UTC)
+        <button class="chip-ctrl" data-action="all" data-group="hours">All</button>
+        <button class="chip-ctrl" data-action="none" data-group="hours">None</button>
+      </div>
+      <div class="chip-group" id="hour-chips"></div>
+    </div>
+
+    <div class="tr-hint">
+      Times are UTC. Showing local clock time needs a location per route, which the route file does not carry yet.
+    </div>
+  </section>
+
+  <!-- Group and sort -->
+  <section class="an-panel">
+    <div class="an-panel-title">Group &amp; Sort</div>
+
+    <div class="filter-row">
+      <span style="font-size:0.85rem;color:#374151;white-space:nowrap">Split by:</span>
+      <div class="radio-group">
+        <label><input type="radio" name="split" value="mode" checked> Vehicle Type</label>
+        <label><input type="radio" name="split" value="network"> Network</label>
+        <label><input type="radio" name="split" value="country"> Country</label>
+        <label><input type="radio" name="split" value="line"> Single Lines</label>
+        <label><input type="radio" name="split" value="time"> Time Period</label>
+        <label><input type="radio" name="split" value="none"> None</label>
+      </div>
+      <div id="time-period-wrap" style="display:none;align-items:center;gap:6px">
+        <span style="font-size:0.85rem;color:#374151">Period:</span>
+        <select id="time-period-select">
+          <option value="year">Year</option>
+          <option value="month">Month</option>
+          <option value="weekday">Day of Week</option>
+          <option value="weekend">Weekday vs Weekend</option>
+          <option value="hour4">4-Hour Periods (UTC)</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="filter-row">
+      <span style="font-size:0.85rem;color:#374151;white-space:nowrap">One data point per:</span>
+      <div class="radio-group">
+        <label><input type="radio" name="unit" value="journey"> Journey</label>
+        <label><input type="radio" name="unit" value="line"> Line (journeys averaged)</label>
+        <label><input type="radio" name="unit" value="weightedLine" checked> Journey (weighted by line)</label>
+        <span class="tr-info" tabindex="0" role="button" aria-label="What weighting by line does">i
+          <span class="tr-info-bubble">
+            Every journey still counts, but each transit line carries the same total weight no matter
+            how often it was measured. A journey on a line with 50 measurements counts one fiftieth as
+            much as a journey on a line measured only once.
+            <br><br>
+            This stops one frequently measured line from dominating the result. Unlike
+            <strong>Line (journeys averaged)</strong>, it keeps the spread between individual journeys
+            instead of collapsing each line to a single number.
+            <br><br>
+            Because journeys carry different weights, individual points and outliers are not drawn in
+            this mode &mdash; only the box, whiskers and median.
+          </span>
+        </span>
+      </div>
+      <span style="font-size:0.85rem;color:#374151;white-space:nowrap;margin-left:12px">Min. journeys per group:</span>
+      <input type="number" id="min-n" value="5" min="1" max="999" style="width:60px">
+    </div>
+
+    <div class="filter-row" id="limit-row">
+      <span style="font-size:0.85rem;color:#374151">Show top</span>
+      <input type="number" id="limit-n" value="15" min="1" max="200" style="width:60px">
+      <span style="font-size:0.85rem;color:#374151">by</span>
+      <select id="limit-type">
+        <option value="count">Most Journeys</option>
+        <option value="highest">Highest Median CO&#8322;</option>
+        <option value="lowest">Lowest Median CO&#8322;</option>
+      </select>
+      <span style="font-size:0.85rem;color:#374151">, display order:</span>
+      <select id="display-order">
+        <option value="lowest">Lowest Median CO&#8322;</option>
+        <option value="highest">Highest Median CO&#8322;</option>
+        <option value="count">Most Journeys</option>
+        <option value="natural">Natural order</option>
+      </select>
+    </div>
+  </section>
+
+  <!-- Results -->
+  <section class="an-panel">
+    <div class="an-panel-title">Results</div>
+    <div class="filter-row">
+      <span style="font-size:0.85rem;color:#374151">Chart:</span>
+      <div class="radio-group">
+        <label><input type="radio" name="chart-type" value="stacked" checked> Stacked bar</label>
+        <label><input type="radio" name="chart-type" value="boxplot"> Box plot</label>
+      </div>
+      <div class="radio-group" id="box-points" style="display:none;margin-left:12px">
+        <span id="point-mode-opts" style="display:contents">
+          <label><input type="radio" name="point-mode" value="none"> Box only</label>
+          <label><input type="radio" name="point-mode" value="outliers" checked> Outliers</label>
+          <label><input type="radio" name="point-mode" value="all"> All values</label>
+        </span>
+        <label style="margin-left:10px"><input type="checkbox" name="show-median" checked> Show median</label>
+      </div>
+      <div id="stacked-mode-wrap" style="display:flex;align-items:center;gap:6px;margin-left:16px">
+        <span style="font-size:0.85rem;color:#374151;white-space:nowrap">Group by:</span>
+        <div class="radio-group">
+          <label><input type="radio" name="stacked-mode" value="zones" checked> 3 categories (GO IAQS)</label>
+          <label><input type="radio" name="stacked-mode" value="score"> Score 10&ndash;0 (GO IAQS)</label>
+        </div>
+      </div>
+    </div>
+    <div id="chart-summary"></div>
+    <div id="main-chart-wrap" style="height:500px"><canvas id="main-chart"></canvas></div>
+    <div id="tr-legend" style="font-size:0.85rem;color:#374151;margin-top:6px">
+      Colour by GO IAQS air quality category:
+      <span class="tr-zone-dot" style="background:#648eff"></span>Good (&lt;800 ppm)
+      <span class="tr-zone-dot" style="background:#ffb000;margin-left:10px"></span>Moderate (800&ndash;1400 ppm)
+      <span class="tr-zone-dot" style="background:#ff190c;margin-left:10px"></span>Unhealthy (&gt;1400 ppm)
+    </div>
+  </section>
+
+  <!-- Table -->
+  <section class="an-panel">
+    <div class="an-panel-title">Table</div>
+    <div style="max-height:420px;overflow:auto">
+      <table id="tr-table">
+        <thead><tr>
+          <th data-sort="label">Group</th>
+          <th data-sort="n">Journeys</th>
+          <th data-sort="lines">Lines</th>
+          <th data-sort="median">Median CO&#8322;</th>
+          <th data-sort="p90">90th pct</th>
+          <th data-sort="good">% Good</th>
+          <th data-sort="bad">% Unhealthy</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Comparison mode -->
+  <section class="an-panel">
+    <div class="an-panel-title">
+      Comparison Mode
+      <span class="an-panel-title-actions"><button id="toggle-comparison">Hide</button></span>
+    </div>
+    <p style="font-size:0.82rem;color:#6b7280;margin:4px 0 0">
+      Compare up to 5 independently filtered sets of journeys side by side.
+    </p>
+
+    <div id="comparison-body">
+      <div id="slots-container"></div>
+      <button id="add-slot-btn">+ Add Filter Set</button>
+      <button id="duplicate-slot-btn" disabled>+ Duplicate Last</button>
+
+      <div class="filter-row" style="margin-top:8px">
+        <span style="font-size:0.85rem;color:#374151;white-space:nowrap">One data point per:</span>
+        <div class="radio-group">
+          <label><input type="radio" name="unit-cmp" value="journey"> Journey</label>
+          <label><input type="radio" name="unit-cmp" value="line"> Line (journeys averaged)</label>
+          <label><input type="radio" name="unit-cmp" value="weightedLine" checked> Journey (weighted by line)</label>
+          <span class="tr-info" tabindex="0" role="button" aria-label="What weighting by line does">i
+          <span class="tr-info-bubble">
+            Every journey still counts, but each transit line carries the same total weight no matter
+            how often it was measured. A journey on a line with 50 measurements counts one fiftieth as
+            much as a journey on a line measured only once.
+            <br><br>
+            This stops one frequently measured line from dominating a group. Unlike
+            <strong>Line (journeys averaged)</strong>, it keeps the spread between individual journeys
+            instead of collapsing each line to a single number.
+            <br><br>
+            Because journeys carry different weights, individual points and outliers are not drawn in
+            this mode &mdash; only the box, whiskers and median.
+            </span>
+          </span>
+        </div>
+        <span style="font-size:0.8rem;color:#6b7280;white-space:nowrap">applies to all groups</span>
+      </div>
+
+      <div class="filter-row" style="margin-top:8px">
+        <span id="cmp-point-mode-opts" style="display:contents">
+          <div class="radio-group">
+            <label><input type="radio" name="point-mode-cmp" value="none"> Boxplot only</label>
+            <label><input type="radio" name="point-mode-cmp" value="outliers"> Show outliers</label>
+            <label><input type="radio" name="point-mode-cmp" value="all" checked> Show all individual values</label>
+          </div>
+        </span>
+        <label class="scatter-toggle">
+          <input type="checkbox" id="match-relations">
+          Match transit lines across groups
+        </label>
+        <span class="tr-info" tabindex="0" role="button" aria-label="What matching does">i
+          <span class="tr-info-bubble">
+            Keeps only the transit lines that appear in <strong>every</strong> group, so each group
+            describes the same set of lines instead of a different one. That way a difference between
+            groups reflects the thing you filtered on, rather than one group simply happening to contain
+            busier or better-ventilated lines.
+            <br><br>
+            Matching works at the level of the <strong>line</strong> (the OSM route relation) &mdash;
+            not the individual stations. Two journeys on the same line can still cover different stretches
+            of the route, so trip length and which section was travelled continue to play a role.
+          </span>
+        </span>
+        <label class="scatter-toggle">
+          <input type="checkbox" id="show-median-cmp">
+          Show median value
+        </label>
+      </div>
+
+      <div id="comparison-note" style="font-size:0.8rem;color:#6b7280;margin-top:4px"></div>
+      <div id="comparison-chart-wrap" style="height:480px;margin-top:12px">
+        <canvas id="comparison-chart"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <!-- Coverage -->
+  <section class="an-panel collapsed">
+    <div class="an-panel-title">Data Coverage</div>
+    <div id="coverage-body" style="font-size:0.85rem;color:#374151;line-height:1.7"></div>
+  </section>
+
+</div>
+
+<script src="./js/transitanalysis.js"></script>
+</body>
+</html>

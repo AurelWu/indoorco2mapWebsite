@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Live Ticker — Indoor CO₂ Atlas</title>
+  <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="./css/styles.css" />
+  <style>
+    html, body { height: auto; overflow: auto; }
+    body {
+      background: #f3f4f6;
+      font-family: 'Titillium Web', sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+    #ticker-wrap {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 12px 16px 32px;
+    }
+    #ticker-wrap h1 {
+      font-size: 1.5rem;
+      font-weight: 600;
+      margin: 12px 0 4px;
+      color: #111;
+    }
+    #ticker-sub {
+      font-size: 0.85rem;
+      color: #6b7280;
+      margin-bottom: 14px;
+    }
+    .ticker-panel {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+    }
+    .ticker-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .ticker-panel-title {
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.07em;
+      text-transform: uppercase;
+      color: #6b7280;
+    }
+    #ticker-updated {
+      font-size: 0.75rem;
+      color: #6b7280;
+    }
+    .range-btn {
+      font-family: 'Titillium Web', sans-serif;
+      font-size: 0.78rem;
+      padding: 3px 10px;
+      border: 1px solid #d1d5db;
+      border-radius: 4px;
+      background: #fff;
+      color: #374151;
+      cursor: pointer;
+    }
+    .range-btn:hover { background: #f9fafb; }
+
+    .table-scroll { overflow-x: auto; }
+    table#ticker-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+    #ticker-table th {
+      text-align: left;
+      font-weight: 600;
+      font-size: 0.72rem;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: #6b7280;
+      border-bottom: 1px solid #e5e7eb;
+      padding: 7px 10px;
+      white-space: nowrap;
+      position: sticky;
+      top: 0;
+      background: #fff;
+    }
+    #ticker-table td {
+      padding: 7px 10px;
+      border-bottom: 1px solid #f3f4f6;
+      color: #374151;
+      vertical-align: top;
+    }
+    #ticker-table tbody tr:hover { background: #f9fafb; }
+    .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .when { white-space: nowrap; }
+    .when small { display: block; color: #9ca3af; font-size: 0.72rem; }
+    .dot {
+      display: inline-block;
+      width: 9px; height: 9px;
+      border-radius: 50%;
+      margin-right: 6px;
+      vertical-align: baseline;
+    }
+    td.score { white-space: nowrap; }
+    .score-badge {
+      display: inline-grid;
+      place-items: center;
+      width: 26px; height: 26px;
+      border-radius: 7px;
+      border: 1px solid rgba(0,0,0,0.35);
+      color: #111;
+      font-weight: 600;
+      font-size: 0.85rem;
+      margin-right: 7px;
+      vertical-align: middle;
+    }
+    .score-cat { color: #4b5563; vertical-align: middle; }
+    .score-key {
+      display: inline-block;
+      width: 11px; height: 11px;
+      border-radius: 3px;
+      border: 1px solid rgba(0,0,0,0.3);
+      margin-right: 5px;
+      vertical-align: -1px;
+    }
+    .muted { color: #9ca3af; }
+    .code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; color: #6b7280; }
+    td.links { white-space: nowrap; }
+    .row-link { color: #2563eb; text-decoration: none; }
+    .row-link:hover { text-decoration: underline; }
+    .row-link i { font-size: 0.78rem; margin-right: 3px; }
+    .link-sep { color: #d1d5db; margin: 0 6px; }
+    .newrow { animation: flashin 1.6s ease-out; }
+    @keyframes flashin { from { background: #fef3c7; } to { background: transparent; } }
+
+    #ticker-loading { text-align: center; padding: 40px; color: #6b7280; font-size: 1rem; }
+    #ticker-error { display: none; text-align: center; padding: 20px; color: #dc2626; font-size: 0.9rem; }
+
+    .legend-strip {
+      display: flex; flex-wrap: wrap; gap: 12px;
+      font-size: 0.72rem; color: #6b7280; margin-top: 10px;
+    }
+    .legend-strip span { white-space: nowrap; }
+
+    @media (max-width: 760px) {
+      #ticker-wrap { padding: 8px 8px 24px; }
+      .ticker-panel { padding: 10px 8px; }
+      #ticker-table { font-size: 0.8rem; }
+      .hide-narrow { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav>
+  <ul class="navbar">
+    <li class="navbar-icon">
+      <a href="https://indoorco2map.com">
+        <img src="images/icon512_512.png" alt="Indoor CO₂ Map" class="navbar-logo">
+      </a>
+    </li>
+
+    <div class="dropdown">
+      <button onclick="this.nextElementSibling.classList.toggle('show')" class="dropbtn">Menu</button>
+      <div class="dropdown-content">
+        <a href="https://indoorco2map.com/transit.html">Public Transit</a>
+        <a href="https://www.indoorco2map.com/BoxPlotLocationTypes.html">Results by Location Type</a>
+        <a href="analysis.html">Data Analysis (Buildings)</a>
+        <a href="transitanalysis.html">Data Analysis (Public Transit)</a>
+        <a href="https://www.indoorco2map.com/supermarketdetails.html">Supermarket Charts (Germany)</a>
+        <a href="stats.html">Activity Stats</a>
+        <a href="ticker.html"><strong>Live Ticker</strong></a>
+        <a href="https://indoorco2map.com/frequencyMapNUTS1.html">Activity Map by NUTS1 Region</a>
+        <a href="https://www.indoorco2map.com/allSupermarkets.html">All Supermarkets (Germany)</a>
+        <a href="blog.html">Blog</a>
+        <a href="#" onclick="event.preventDefault();window.location='https://indoorco2map.com/chartdata/IndoorCO2MapData.zip'">
+          <i class="fas fa-download"></i> Download Data
+        </a>
+      </div>
+    </div>
+
+    <a href="index.html" class="navbar-back"><i class="fas fa-map-marker-alt" style="margin-right:5px"></i> Map</a>
+  </ul>
+</nav>
+
+<!-- Main content -->
+<div id="ticker-wrap">
+  <h1>Live Ticker</h1>
+  <div id="ticker-sub">The 100 most recent recordings.</div>
+
+  <div id="ticker-loading">Loading recordings…</div>
+  <div id="ticker-error"></div>
+
+  <div class="ticker-panel" id="ticker-panel" style="display:none">
+    <div class="ticker-bar">
+      <div class="ticker-panel-title">Latest Recordings</div>
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <span id="ticker-updated"></span>
+        <button class="range-btn" id="refresh-btn"><i class="fas fa-rotate-right"></i> Refresh</button>
+      </div>
+    </div>
+
+    <div class="table-scroll">
+      <table id="ticker-table">
+        <thead>
+          <tr>
+            <th>Recorded</th>
+            <th>GO IAQS</th>
+            <th class="num">Avg CO₂</th>
+            <th class="num" title="number of CO&#8322; readings in the recording, usually one per minute">Readings</th>
+            <th>Place type</th>
+            <th>Name</th>
+            <th>Country</th>
+            <th>NUTS3</th>
+            <th>Links</th>
+          </tr>
+        </thead>
+        <tbody id="ticker-body"></tbody>
+      </table>
+    </div>
+
+    <div class="legend-strip">
+      <span><i class="score-key" style="background:#648EFF"></i>Good (10&#8211;8) &#8804; 800 ppm</span>
+      <span><i class="score-key" style="background:#FFB000"></i>Moderate (7&#8211;4) 801&#8211;1400 ppm</span>
+      <span><i class="score-key" style="background:#FF190C"></i>Unhealthy (3&#8211;0) &gt; 1400 ppm</span>
+      <span class="muted">GO IAQS Score for CO<sub>2</sub>, see
+        <a href="https://goaqs.org/global-open-indoor-air-quality-standards/" target="_blank" rel="noopener noreferrer">goaqs.org</a></span>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  // ── Settings ───────────────────────────────────────────────────────────────
+  var ROW_COUNT       = 100;   // how many recordings to show
+  var REFRESH_MINUTES = 10;    // 0 turns auto refresh off
+  var MAP_ZOOM        = 15;    // zoom used by the map links
+
+  // Same file the map itself loads. It is served with content-encoding: gzip,
+  // so the browser unpacks it and response.json() is enough.
+  var DATA_SOURCE = 'https://indoorco2map.com/chartdata/IndoorCO2MapData.json.gz';
+
+  // GO IAQS Score (GO AQS, goaqs.org). Bands copied from co2ToScore in
+  // js/dataLoader.js so the ticker, the map colours and the score filter on the
+  // main page always agree. The site records CO2 only, so this is the CO2 score.
+  function co2ToScore(ppm) {
+    if (typeof ppm !== 'number' || isNaN(ppm)) return null;
+    if (ppm <=  537) return 10;
+    if (ppm <=  712) return 9;
+    if (ppm <=  800) return 8;
+    if (ppm <=  900) return 7;
+    if (ppm <= 1100) return 6;
+    if (ppm <= 1300) return 5;
+    if (ppm <= 1400) return 4;
+    if (ppm <= 2000) return 3;
+    if (ppm <= 3200) return 2;
+    if (ppm <= 4400) return 1;
+    return 0;
+  }
+
+  // Same ppm ranges the score filter shows on the main page.
+  var SCORE_TO_LABEL = {
+    10: '<537ppm',       9: '534\u2013712ppm',   8: '713\u2013800ppm',
+     7: '801\u2013900ppm',   6: '901\u20131100ppm',  5: '1101\u20131300ppm',
+     4: '1301\u20131400ppm', 3: '1401\u20132000ppm', 2: '2001\u20133200ppm',
+     1: '3201\u20134400ppm', 0: '\u2265 4401ppm'
+  };
+
+  function goIaqs(ppm) {
+    var score = co2ToScore(ppm);
+    if (score === null) return null;
+    if (score >= 8) return { score: score, category: 'Good',      letter: 'A', color: '#648EFF' };
+    if (score >= 4) return { score: score, category: 'Moderate',  letter: 'B', color: '#FFB000' };
+    return                 { score: score, category: 'Unhealthy', letter: 'Z', color: '#FF190C' };
+  }
+
+  var elLoading = document.getElementById('ticker-loading');
+  var elError   = document.getElementById('ticker-error');
+  var elPanel   = document.getElementById('ticker-panel');
+  var elBody    = document.getElementById('ticker-body');
+  var elUpdated = document.getElementById('ticker-updated');
+
+  var seenKeys = {};   // so a refresh can highlight rows that are new
+  var firstRun = true;
+
+  // ── Helpers ────────────────────────────────────────────────────────────────
+  function esc(s) {
+    return String(s === null || s === undefined ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;');
+  }
+
+  function fmtWhen(ms) {
+    var d = new Date(ms);
+    if (isNaN(d.getTime())) return '<span class="muted">unknown</span>';
+    var day = d.toLocaleDateString(undefined, { day: '2-digit', month: 'short', year: 'numeric' });
+    var tim = d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    return esc(day) + ' ' + esc(tim) + '<small>' + esc(ago(d)) + '</small>';
+  }
+
+  function ago(d) {
+    var mins = Math.round((Date.now() - d.getTime()) / 60000);
+    if (mins < 1)  return 'just now';
+    if (mins < 60) return mins + ' min ago';
+    var h = Math.round(mins / 60);
+    if (h < 24)    return h + (h === 1 ? ' hour ago' : ' hours ago');
+    var days = Math.round(h / 24);
+    if (days < 30) return days + (days === 1 ? ' day ago' : ' days ago');
+    var months = Math.round(days / 30);
+    return months + (months === 1 ? ' month ago' : ' months ago');
+  }
+
+  function fmtType(rec) {
+    var label = rec.osmTag || rec.osmKey || '';
+    if (!label) return '<span class="muted">\u2014</span>';
+    label = label.replace(/_/g, ' ');
+    label = label.charAt(0).toUpperCase() + label.slice(1);
+    var sub = (rec.osmTag && rec.osmKey) ? ' <span class="muted">(' + esc(rec.osmKey) + ')</span>' : '';
+    return esc(label) + sub;
+  }
+
+  // OSM object urls are /node/<id>, /way/<id> and /relation/<id>; combined_id
+  // holds the type and the id as n_123, w_123 or r_123. Coordinates go into the
+  // map link only, they are not shown as a column. map.js reads lat, lng and
+  // zoom off the query string and writes them back with 5 decimals.
+  var OSM_KIND = { n: 'node', w: 'way', r: 'relation' };
+
+  function links(rec) {
+    var out = [];
+
+    var kind = OSM_KIND[String(rec.osmKind || '').toLowerCase()];
+    var id = Number(rec.osmId);
+    if (kind && isFinite(id) && id > 0) {
+      out.push('<a class="row-link" href="https://www.openstreetmap.org/' + kind + '/' + id + '" ' +
+               'target="_blank" rel="noopener noreferrer" title="' + kind + ' ' + id + ' on OpenStreetMap">OSM</a>');
+    }
+
+    var lat = Number(rec.lat), lon = Number(rec.lon);
+    if (isFinite(lat) && isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180 && (lat || lon)) {
+      out.push('<a class="row-link" href="https://www.indoorco2map.com/?lat=' + lat.toFixed(5) +
+               '&amp;lng=' + lon.toFixed(5) + '&amp;zoom=' + MAP_ZOOM + '" ' +
+               'title="Show this spot on the map">' +
+               '<i class="fas fa-map-marker-alt"></i> Map</a>');
+    }
+
+    return out.length ? out.join('<span class="link-sep">\u00b7</span>') : '<span class="muted">\u2014</span>';
+  }
+
+  // ── Loading ────────────────────────────────────────────────────────────────
+  // The file is grouped by location, with the recordings held as a json string
+  // in "measurements", so it gets flattened into one row per recording.
+  function flatten(locations) {
+    if (!Array.isArray(locations)) throw new Error('unexpected data shape');
+    var rows = [];
+
+    for (var i = 0; i < locations.length; i++) {
+      var loc = locations[i];
+      var list;
+      try { list = JSON.parse(loc.measurements); } catch (e) { continue; }
+      if (!Array.isArray(list)) continue;
+
+      var parts = String(loc.combined_id || '').split('_');
+
+      for (var j = 0; j < list.length; j++) {
+        var m = list[j];
+        rows.push({
+          startTime: Number(m.startTime),
+          name:      m.nwrname,
+          ppm:       Number(m.ppmavg),
+          readings:  m.co2array ? String(m.co2array).split(';').length : 0,
+          lat:       m.lat,
+          lon:       m.lon,
+          osmKind:   parts[0],
+          osmId:     parts[1],
+          osmKey:    loc.osmkey,
+          osmTag:    loc.osmtag,
+          country:   loc.countryname,
+          nuts3:     loc.nuts3id
+        });
+      }
+    }
+
+    rows.sort(function (a, b) { return b.startTime - a.startTime; });
+    return rows.slice(0, ROW_COUNT);
+  }
+
+  function load() {
+    return fetch(DATA_SOURCE, { cache: 'no-store' })
+      .then(function (r) {
+        if (!r.ok) throw new Error('data download failed with status ' + r.status);
+        return r.json();
+      })
+      .then(flatten);
+  }
+
+  // ── Rendering ──────────────────────────────────────────────────────────────
+  function render(rows) {
+    var html = rows.map(function (rec) {
+      var key = rec.osmKind + rec.osmId + '|' + rec.startTime;
+      var isNew = !firstRun && !seenKeys[key];
+      seenKeys[key] = true;
+
+      var q = isFinite(rec.ppm) ? goIaqs(rec.ppm) : null;
+      var scoreCell, avgCell;
+      if (q) {
+        scoreCell = '<span class="score-badge" style="background:' + q.color + '" ' +
+                    'title="' + q.category + ' (' + q.letter + '), ' + SCORE_TO_LABEL[q.score] + '">' +
+                    q.score + '</span><span class="score-cat">' + q.category + '</span>';
+        avgCell = Math.round(rec.ppm) + ' ppm';
+      } else {
+        scoreCell = '<span class="muted">\u2014</span>';
+        avgCell = '<span class="muted">\u2014</span>';
+      }
+
+      return '<tr' + (isNew ? ' class="newrow"' : '') + '>' +
+        '<td class="when">' + fmtWhen(rec.startTime) + '</td>' +
+        '<td class="score">' + scoreCell + '</td>' +
+        '<td class="num">' + avgCell + '</td>' +
+        '<td class="num">' + (rec.readings || '<span class="muted">\u2014</span>') + '</td>' +
+        '<td>' + fmtType(rec) + '</td>' +
+        '<td>' + (rec.name ? esc(rec.name) : '<span class="muted">\u2014</span>') + '</td>' +
+        '<td>' + (rec.country ? esc(rec.country) : '<span class="muted">\u2014</span>') + '</td>' +
+        '<td>' + (rec.nuts3 ? '<span class="code">' + esc(rec.nuts3) + '</span>' : '<span class="muted">\u2014</span>') + '</td>' +
+        '<td class="links">' + links(rec) + '</td>' +
+        '</tr>';
+    }).join('');
+
+    elBody.innerHTML = html;
+    elUpdated.textContent = 'updated ' + new Date().toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    elLoading.style.display = 'none';
+    elError.style.display = 'none';
+    elPanel.style.display = '';
+    firstRun = false;
+  }
+
+  function fail(err) {
+    console.error(err);
+    if (elBody.children.length) return;   // keep whatever is already on screen
+    elLoading.style.display = 'none';
+    elPanel.style.display = 'none';
+    elError.style.display = 'block';
+    elError.innerHTML = 'Could not load the recordings.<br><small>' + esc(err && err.message) +
+      '</small><br><button class="range-btn" style="margin-top:10px" onclick="location.reload()">Retry</button>';
+  }
+
+  function refresh() {
+    return load().then(render).catch(fail);
+  }
+
+  document.getElementById('refresh-btn').addEventListener('click', function () {
+    elUpdated.textContent = 'refreshing\u2026';
+    refresh();
+  });
+
+  refresh();
+
+  if (REFRESH_MINUTES > 0) {
+    setInterval(function () {
+      if (!document.hidden) refresh();
+    }, REFRESH_MINUTES * 60000);
+  }
+})();
+</script>
+</body>
+</html>

@@ -237,10 +237,12 @@ function fail(msg) {
     if (el) el.textContent = msg;
 }
 
+// The page no longer shows this text, but the figures are still worth having:
+// they go to the console, and #note is written to if a page ever adds it back.
 function updateNote() {
     var el = document.getElementById('note');
     var cfg = LAYERS[current], s = stats[current];
-    if (!s) { el.textContent = ''; return; }
+    if (!s) { if (el) el.textContent = ''; return; }
 
     var txt = num(s.shown) + ' of ' + num(records.length) +
               ' measurements mapped at this level.';
@@ -269,7 +271,8 @@ function updateNote() {
                missList.slice(0, 6).join('; ') +
                (missList.length > 6 ? '; and ' + (missList.length - 6) + ' more' : '') + '.';
     }
-    el.textContent = txt;
+    if (el) el.textContent = txt;
+    console.info('[regions map] ' + txt);
 }
 
 function setButtonsEnabled(on) {

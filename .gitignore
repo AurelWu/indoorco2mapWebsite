@@ -65,3 +65,11 @@ coverage/
 # =========================
 *.bak
 *.old
+
+# =========================
+# Map build artefacts
+# =========================
+# Built by tools/build_na_geojson.py and uploaded to <site>/chartdata/ on S3,
+# the same place the rest of the chart data is served from.
+chartdata/
+tools/_cache/

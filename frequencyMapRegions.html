@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Activity Map by Regions — Indoor CO₂ Atlas</title>
+  <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="./css/styles.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+  <style>
+    html, body {
+      height: auto;
+      overflow: auto;
+    }
+    body {
+      background: #f3f4f6;
+      font-family: 'Titillium Web', sans-serif;
+      margin: 0;
+      padding: 0;
+    }
+
+    /* styles.css does not carry this one; analysis.css does */
+    .navbar-back {
+      margin-left: auto;
+      display: flex;
+      align-items: center;
+      padding: 0 12px;
+      height: 40px;
+      font-size: 0.9rem;
+      text-decoration: none;
+      color: #374151;
+      white-space: nowrap;
+    }
+    .navbar-back:hover { color: #3b82f6; }
+
+    /* nav is `position: fixed; top: 10px` in styles.css - a floating card over
+       the fullscreen map on index.html - so content has to clear it itself. */
+    #map-wrap {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 70px 16px 16px;
+    }
+    #map-wrap h1 {
+      font-size: 1.4rem;
+      font-weight: 600;
+      margin: 8px 0 10px;
+      color: #111;
+    }
+
+    /* Sidebar beside the map on wide screens, stacked underneath on narrow. */
+    .layout {
+      display: grid;
+      grid-template-columns: 290px minmax(0, 1fr);
+      gap: 12px;
+      align-items: start;
+    }
+
+    .panel {
+      background: #fff;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
+      padding: 14px 16px;
+    }
+    .panel + .panel { margin-top: 12px; }
+    .panel h2 {
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: #6b7280;
+      margin: 0 0 10px;
+    }
+
+    .group + .group { margin-top: 14px; }
+    .group-label {
+      display: block;
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: #9ca3af;
+      margin: 0 0 6px;
+    }
+
+    .levelbtn {
+      display: block;
+      width: 100%;
+      text-align: left;
+      font: inherit;
+      font-size: 0.95rem;
+      padding: 8px 12px;
+      margin-bottom: 6px;
+      border: 1px solid #d1d5db;
+      border-radius: 6px;
+      background: #f9fafb;
+      color: #111;
+      cursor: pointer;
+      transition: background 0.12s, border-color 0.12s;
+    }
+    .levelbtn:last-child { margin-bottom: 0; }
+    .levelbtn:hover { background: #eef2f7; border-color: #9ca3af; }
+    .levelbtn:disabled {
+      opacity: 0.5;
+      cursor: progress;
+      background: #f3f4f6;
+    }
+    .levelbtn:disabled:hover { background: #f3f4f6; border-color: #d1d5db; }
+    .levelbtn.active {
+      background: #2b8cbe;
+      border-color: #2b8cbe;
+      color: #fff;
+      font-weight: 600;
+    }
+
+    /* The map panel is padding-free so the map meets its rounded corners. */
+    .map-panel {
+      padding: 0;
+      overflow: hidden;
+      position: relative;
+    }
+    /* styles.css sets `#map { position: absolute; top:0; left:0; height:100% }`
+       for the fullscreen map on index.html. Inherited here it drops the map out
+       of the flow, collapses .map-panel to zero height and the panel's
+       overflow:hidden then clips the map away entirely. Put it back in flow -
+       Leaflet also wants a positioned container for its panes. */
+    #map {
+      position: relative;
+      top: auto;
+      left: auto;
+      height: calc(100vh - 215px);
+      min-height: 480px;
+      width: 100%;
+      background-color: #5e5e5e;
+    }
+
+    #status {
+      position: absolute;
+      z-index: 500;
+      top: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(255,255,255,0.95);
+      border: 1px solid #e5e7eb;
+      border-radius: 6px;
+      padding: 6px 14px;
+      font-size: 0.9rem;
+      color: #374151;
+      box-shadow: 0 1px 4px rgba(0,0,0,0.12);
+      display: none;
+    }
+
+    #note {
+      margin: 0;
+      font-size: 0.86rem;
+      line-height: 1.5;
+      color: #4b5563;
+    }
+
+    @media (max-width: 900px) {
+      .layout { grid-template-columns: 1fr; }
+      /* side by side again so the controls do not push the map off-screen */
+      .group { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+      .group-label { width: 100%; margin-bottom: 2px; }
+      .levelbtn { width: auto; flex: 1 1 auto; margin-bottom: 0; text-align: center; }
+      #map { height: calc(100vh - 230px); min-height: 400px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav>
+  <ul class="navbar">
+    <li class="navbar-icon">
+      <a href="https://indoorco2map.com">
+        <img src="images/icon512_512.png" alt="Indoor CO₂ Map" class="navbar-logo">
+      </a>
+    </li>
+
+    <div class="dropdown">
+      <button onclick="this.nextElementSibling.classList.toggle('show')" class="dropbtn">Menu</button>
+      <div class="dropdown-content">
+        <a href="analysis.html">Data Analysis (Buildings)</a>
+        <a href="transitanalysis.html">Data Analysis (Public Transit)</a>
+        <a href="stats.html">Activity Stats</a>
+        <a href="https://indoorco2map.com/frequencyMapRegions.html"><strong>Activity Map by Regions</strong></a>
+        <a href="blog.html">Blog</a>
+        <a href="https://indoorco2map.com/transit.html">Public Transit (Legacy)</a>
+        <a href="#" onclick="event.preventDefault();window.location='https://indoorco2map.com/chartdata/IndoorCO2MapData.zip'">
+          <i class="fas fa-download"></i> Download Data
+        </a>
+      </div>
+    </div>
+
+    <a href="index.html" class="navbar-back"><i class="fas fa-map-marker-alt" style="margin-right:5px"></i> Map</a>
+  </ul>
+</nav>
+
+<div id="map-wrap">
+  <h1>Amount of Measurements by Region</h1>
+
+  <div class="layout">
+    <aside>
+      <div class="panel">
+        <h2>Region level</h2>
+
+        <div class="group">
+          <span class="group-label">Europe</span>
+          <button id="btn-nuts1" class="levelbtn active" type="button">NUTS1</button>
+          <button id="btn-nuts2" class="levelbtn" type="button">NUTS2</button>
+          <button id="btn-nuts3" class="levelbtn" type="button">NUTS3</button>
+        </div>
+
+        <div class="group">
+          <span class="group-label">World</span>
+          <button id="btn-world" class="levelbtn" type="button">Countries</button>
+        </div>
+
+        <div class="group">
+          <span class="group-label">North America</span>
+          <button id="btn-na4" class="levelbtn" type="button">States / Provinces</button>
+          <button id="btn-na6" class="levelbtn" type="button">USA: Counties</button>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>About this view</h2>
+        <p id="note">Loading…</p>
+      </div>
+    </aside>
+
+    <div class="panel map-panel">
+      <div id="status"></div>
+      <div id="map"></div>
+    </div>
+  </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/polylabel@2.0.1/polylabel.min.js"></script>
+<script src="frequencyMapRegions.js"></script>
+</body>
+</html>

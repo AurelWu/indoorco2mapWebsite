@@ -306,6 +306,7 @@ function showLayer(key) {
         layers[key].addTo(map);
         if (moved) map.setView([cfg.view[0], cfg.view[1]], cfg.view[2]);
         updateNote();
+        renderLabels();
         return;
     }
 
@@ -327,8 +328,13 @@ function showLayer(key) {
                     var where = (cfg.kind === 'na6' && p.parent)
                               ? p.name + ', ' + p.parent : p.name;
                     var extra = (cfg.kind === 'nuts' && p.id) ? ' (' + p.id + ')' : '';
+                    // A dependency shares its sovereign's count; say so rather
+                    // than implying the measurements were taken there.
+                    var main = primaryIndex(key)[featureKey(cfg, p)];
+                    var note = (main && main.name && main.name !== p.name)
+                             ? '<br><i>counted under ' + main.name + '</i>' : '';
                     layer.bindPopup('<b>' + where + extra + '</b><br>' +
-                                    cfg.describe + '<br>Measurements: ' + n);
+                                    cfg.describe + '<br>Measurements: ' + n + note);
                 }
             }).addTo(map);
             if (moved) map.setView([cfg.view[0], cfg.view[1]], cfg.view[2]);
@@ -337,6 +343,7 @@ function showLayer(key) {
             if (map.invalidateSize) map.invalidateSize();
             setStatus('');
             updateNote();
+            renderLabels();
         })
         .catch(function (e) {
             fail('Could not load the boundaries for ' + cfg.label +
@@ -380,6 +387,277 @@ function showLayer(key) {
             console.error(e);
         });
 })();
+
+// ---------------------------------------------------------------- labels
+// Names and counts for the busiest regions. A label is drawn inside its region
+// when it fits there, otherwise it is pushed outside and joined back with a
+// leader line, so a small but busy region (Berlin, San Francisco) stays legible.
+
+var labelMode = 0;              // 0 = off, otherwise how many regions to label
+var labelLayer = null;          // L.layerGroup holding the labels and leaders
+var anchorCache = {};           // layerKey -> { featureIndex: [lat, lng] }
+var primaryCache = {};          // layerKey -> { regionKey: {idx, area, name} }
+var measureCanvas;   // undefined = untried, null = unavailable
+
+var LABEL_FONT = '600 11px "Titillium Web", system-ui, sans-serif';
+
+function ringArea(ring) {
+    var a = 0;
+    for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+        a += (ring[j][0] + ring[i][0]) * (ring[j][1] - ring[i][1]);
+    }
+    return Math.abs(a / 2);
+}
+
+// Total outer-ring area of a feature, used to pick which polygon of a country
+// is the "main" one.
+function featureArea(geom) {
+    if (geom.type === 'Polygon') return ringArea(geom.coordinates[0]);
+    var a = 0;
+    for (var i = 0; i < geom.coordinates.length; i++) {
+        a += ringArea(geom.coordinates[i][0]);
+    }
+    return a;
+}
+
+// The biggest piece of a MultiPolygon, as polylabel wants it: [outer, holes...]
+function largestPart(geom) {
+    if (geom.type === 'Polygon') return geom.coordinates;
+    var best = null, bestA = -1;
+    for (var i = 0; i < geom.coordinates.length; i++) {
+        var a = ringArea(geom.coordinates[i][0]);
+        if (a > bestA) { bestA = a; best = geom.coordinates[i]; }
+    }
+    return best;
+}
+
+function segDistSq(px, py, a, b) {
+    var x = a[0], y = a[1], dx = b[0] - x, dy = b[1] - y;
+    if (dx !== 0 || dy !== 0) {
+        var t = ((px - x) * dx + (py - y) * dy) / (dx * dx + dy * dy);
+        if (t > 1) { x = b[0]; y = b[1]; }
+        else if (t > 0) { x += dx * t; y += dy * t; }
+    }
+    dx = px - x; dy = py - y;
+    return dx * dx + dy * dy;
+}
+
+// Distance from a point to the polygon edge, positive inside and negative out.
+function signedDist(px, py, rings) {
+    var inside = false, minSq = Infinity;
+    for (var k = 0; k < rings.length; k++) {
+        var ring = rings[k];
+        for (var i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+            var a = ring[i], b = ring[j];
+            if ((a[1] > py) !== (b[1] > py) &&
+                px < (b[0] - a[0]) * (py - a[1]) / (b[1] - a[1]) + a[0]) {
+                inside = !inside;
+            }
+            minSq = Math.min(minSq, segDistSq(px, py, a, b));
+        }
+    }
+    return (inside ? 1 : -1) * Math.sqrt(minSq);
+}
+
+// Pole of inaccessibility - the interior point furthest from any edge. A plain
+// centroid is no good: for a concave region (a C shape, or a state wrapped
+// round a bay) it lands outside the polygon and the label detaches.
+//
+// Implemented here rather than pulled from a CDN because polylabel publishes no
+// browser bundle: 1.1.0 is CommonJS and 2.0.1 is an ES module, so the
+// <script src=...polylabel...> tag these pages used to carry never defined
+// anything. Coarse grid for a global maximum, then hill-climb to refine; only
+// ever run for the handful of labelled regions, and cached.
+function poleOfInaccessibility(rings) {
+    var outer = rings[0];
+    var minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    for (var i = 0; i < outer.length; i++) {
+        var p = outer[i];
+        if (p[0] < minX) minX = p[0];
+        if (p[1] < minY) minY = p[1];
+        if (p[0] > maxX) maxX = p[0];
+        if (p[1] > maxY) maxY = p[1];
+    }
+    var w = maxX - minX, h = maxY - minY;
+    if (w === 0 || h === 0) return [minX, minY];
+
+    var N = 24, bx = minX + w / 2, by = minY + h / 2;
+    var bd = signedDist(bx, by, rings);
+    for (var gx = 0; gx <= N; gx++) {
+        for (var gy = 0; gy <= N; gy++) {
+            var x = minX + w * gx / N, y = minY + h * gy / N;
+            var d = signedDist(x, y, rings);
+            if (d > bd) { bd = d; bx = x; by = y; }
+        }
+    }
+    var step = Math.max(w, h) / N;
+    for (var it = 0; it < 14; it++) {
+        step /= 2;
+        var improved = false;
+        for (var ox = -1; ox <= 1; ox++) {
+            for (var oy = -1; oy <= 1; oy++) {
+                if (!ox && !oy) continue;
+                var nx = bx + ox * step, ny = by + oy * step;
+                var nd = signedDist(nx, ny, rings);
+                if (nd > bd) { bd = nd; bx = nx; by = ny; improved = true; }
+            }
+        }
+        if (!improved && step < Math.max(w, h) / 4096) break;
+    }
+    return [bx, by];
+}
+
+function anchorFor(key, idx, feature) {
+    var cache = anchorCache[key] || (anchorCache[key] = {});
+    if (cache[idx]) return cache[idx];
+    var p = poleOfInaccessibility(largestPart(feature.geometry));
+    cache[idx] = [p[1], p[0]];                  // GeoJSON is [lng, lat]
+    return cache[idx];
+}
+
+function measure(text) {
+    if (measureCanvas === null) {               // tried once, not available
+        return text.length * 6.2;
+    }
+    if (!measureCanvas) {
+        try {
+            var c = document.createElement('canvas');
+            measureCanvas = (c && c.getContext) ? c.getContext('2d') : null;
+        } catch (e) { measureCanvas = null; }
+        if (!measureCanvas) { measureCanvas = null; return text.length * 6.2; }
+    }
+    measureCanvas.font = LABEL_FONT;
+    return measureCanvas.measureText(text).width;
+}
+
+// Which polygon is the main one for each region key. Natural Earth splits a
+// country into several features that share an ISO code - France also appears as
+// Clipperton Island, Serbia as Kosovo, Australia as three island territories -
+// and every one of them matches the country's full count. Without this, each
+// would claim its own label showing the whole country's total.
+function primaryIndex(key) {
+    if (primaryCache[key]) return primaryCache[key];
+    var cfg = LAYERS[key], feats = geo[key].features, best = {};
+    for (var i = 0; i < feats.length; i++) {
+        var k = featureKey(cfg, feats[i].properties);
+        var a = featureArea(feats[i].geometry);
+        if (!best[k] || a > best[k].area) {
+            best[k] = { idx: i, area: a, name: feats[i].properties.name || k };
+        }
+    }
+    primaryCache[key] = best;
+    return best;
+}
+
+// The n busiest regions of a layer, ranked, one entry per region.
+function topRegions(key, n) {
+    if (!geo[key] || !counts[key]) return [];
+    var cfg = LAYERS[key], c = counts[key], feats = geo[key].features;
+    var main = primaryIndex(key), out = [];
+    for (var k in main) {
+        var v = c[k] || 0;
+        if (v <= 0) continue;
+        var idx = main[k].idx;
+        out.push({ idx: idx, name: main[k].name, count: v, feature: feats[idx] });
+    }
+    out.sort(function (a, b) { return b.count - a.count || a.name.localeCompare(b.name); });
+    return out.slice(0, n);
+}
+
+function renderLabels() {
+    if (!map.latLngToContainerPoint) return;    // headless: nothing to draw into
+    if (labelLayer) { map.removeLayer(labelLayer); labelLayer = null; }
+    if (!labelMode || !current || !counts[current]) return;
+
+    var items = topRegions(current, labelMode);
+    if (!items.length) return;
+
+    var group = L.layerGroup();
+    var size = map.getSize();
+    var placed = [];
+    // inside first, then push outward in 8 directions at growing distance
+    var DIRS = [[0, -1], [1, -1], [1, 0], [1, 1], [0, 1], [-1, 1], [-1, 0], [-1, -1]];
+    var RADII = [0, 22, 36, 54, 76, 102];
+
+    for (var i = 0; i < items.length; i++) {
+        var it = items[i];
+        var ll = anchorFor(current, it.idx, it.feature);
+        var anchor = map.latLngToContainerPoint(ll);
+        if (anchor.x < -200 || anchor.y < -200 ||
+            anchor.x > size.x + 200 || anchor.y > size.y + 200) continue;
+
+        var text = it.name + '  ' + num(it.count);
+        var w = Math.ceil(measure(text)) + 12, h = 18;
+
+        var spot = null, usedRadius = 0;
+        for (var r = 0; r < RADII.length && !spot; r++) {
+            var dirs = RADII[r] === 0 ? [[0, 0]] : DIRS;
+            for (var d = 0; d < dirs.length; d++) {
+                var cx = anchor.x + dirs[d][0] * (RADII[r] + w / 2);
+                var cy = anchor.y + dirs[d][1] * (RADII[r] + h / 2);
+                var rect = { l: cx - w / 2, r: cx + w / 2, t: cy - h / 2, b: cy + h / 2 };
+                if (rect.l < 2 || rect.t < 2 || rect.r > size.x - 2 || rect.b > size.y - 2) continue;
+                var clash = false;
+                for (var q = 0; q < placed.length; q++) {
+                    var o = placed[q];
+                    if (!(rect.r < o.l || o.r < rect.l || rect.b < o.t || o.b < rect.t)) {
+                        clash = true; break;
+                    }
+                }
+                if (!clash) { spot = { x: cx, y: cy, rect: rect }; usedRadius = RADII[r]; break; }
+            }
+        }
+        if (!spot) continue;                    // no room: omit rather than overlap
+        placed.push(spot.rect);
+
+        var at = map.containerPointToLatLng(L.point(spot.x, spot.y));
+        if (usedRadius > 0) {                   // joined back to its region
+            L.polyline([ll, at], {
+                color: '#1f2937', weight: 1, opacity: 0.8, interactive: false
+            }).addTo(group);
+            L.circleMarker(ll, {
+                radius: 2, color: '#1f2937', fillColor: '#1f2937',
+                fillOpacity: 1, weight: 0, interactive: false
+            }).addTo(group);
+        }
+        L.marker(at, {
+            interactive: false,
+            keyboard: false,
+            icon: L.divIcon({
+                className: 'region-label',
+                html: '<span>' + it.name + '</span><b>' + num(it.count) + '</b>',
+                iconSize: [w, h],
+                iconAnchor: [w / 2, h / 2]
+            })
+        }).addTo(group);
+    }
+
+    labelLayer = group.addTo(map);
+}
+
+function setLabelMode(n) {
+    labelMode = n;
+    for (var i = 0; i < LABEL_BUTTONS.length; i++) {
+        var b = document.getElementById(LABEL_BUTTONS[i][0]);
+        if (b) b.classList.toggle('active', LABEL_BUTTONS[i][1] === n);
+    }
+    renderLabels();
+}
+
+var LABEL_BUTTONS = [['btn-lbl-off', 0], ['btn-lbl-10', 10], ['btn-lbl-25', 25]];
+
+// Wired here, not in the bootstrap block: that runs earlier in the file, when
+// LABEL_BUTTONS is still hoisted-but-undefined.
+for (var li = 0; li < LABEL_BUTTONS.length; li++) {
+    (function (id, n) {
+        var b = document.getElementById(id);
+        if (b) b.addEventListener('click', function () { setLabelMode(n); });
+    })(LABEL_BUTTONS[li][0], LABEL_BUTTONS[li][1]);
+}
+
+// Label placement is computed in screen space, so it has to be redone whenever
+// the view changes.
+if (map.on) map.on('moveend zoomend', renderLabels);
 
 // ---------------------------------------------------------------- legend
 var legend = L.control({ position: 'bottomright' });

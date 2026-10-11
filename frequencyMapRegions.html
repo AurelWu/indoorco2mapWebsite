@@ -133,6 +133,31 @@
       background-color: #5e5e5e;
     }
 
+    /* three across, they are short */
+    .labelgroup { display: flex; gap: 6px; }
+    .labelgroup .levelbtn { flex: 1 1 0; text-align: center; margin-bottom: 0; }
+
+    /* Map labels. Non-interactive so they never swallow a click on a region. */
+    .region-label {
+      pointer-events: none;
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      font: 600 11px 'Titillium Web', system-ui, sans-serif;
+      color: #111;
+      background: rgba(255,255,255,0.92);
+      border: 1px solid rgba(17,24,39,0.35);
+      border-radius: 9px;
+      padding: 0 6px;
+      box-shadow: 0 1px 2px rgba(0,0,0,0.25);
+    }
+    .region-label b {
+      font-weight: 700;
+      color: #1f6f98;
+    }
+
     #status {
       position: absolute;
       z-index: 500;
@@ -222,6 +247,15 @@
           <button id="btn-na6" class="levelbtn" type="button">USA: Counties</button>
         </div>
       </div>
+
+      <div class="panel">
+        <h2>Label the busiest regions</h2>
+        <div class="group labelgroup">
+          <button id="btn-lbl-off" class="levelbtn active" type="button">Off</button>
+          <button id="btn-lbl-10" class="levelbtn" type="button">Top 10</button>
+          <button id="btn-lbl-25" class="levelbtn" type="button">Top 25</button>
+        </div>
+      </div>
     </aside>
 
     <div class="panel map-panel">
@@ -233,7 +267,6 @@
 
 <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.7.1/jszip.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/polylabel@2.0.1/polylabel.min.js"></script>
 <script src="frequencyMapRegions.js"></script>
 </body>
 </html>

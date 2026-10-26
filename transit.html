@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Public Transit Journeys — Indoor CO₂ Atlas</title>
+  <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <link rel="stylesheet" href="./css/styles.css" />
+  <link rel="stylesheet" href="./css/analysis.css" />
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tz-lookup@6.1.25/tz.js"></script>
+
+  <style>
+    /* page-specific bits only; the rest comes from analysis.css */
+    #tj-search { width: 100%; max-width: 560px; height: 36px; font-size: 0.95rem; cursor: text; }
+    .filter-label input[type=date] { font-family: inherit; font-size: 0.85rem; height: 32px; padding: 0 6px;
+                                     border: 1px solid #d1d5db; border-radius: 5px; box-sizing: border-box; }
+    .tj-btn { font-family: inherit; font-size: 0.85rem; height: 32px; padding: 0 12px; border: 1px solid #d1d5db;
+              border-radius: 5px; background: #f9fafb; color: #374151; cursor: pointer; }
+    .tj-btn:hover { background: #e5e7eb; }
+    .tj-hint { font-size: 0.8rem; color: #6b7280; line-height: 1.5; }
+
+    /* the shared navbar is position:fixed and would cover the notice */
+    #analysis-wrap { max-width: 1800px; padding-top: 68px; }
+    #tj-layout { display: grid; grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr); gap: 12px; align-items: start; }
+    #tj-side { position: sticky; top: 8px; }
+    #tj-side .an-panel, #tj-layout > .an-panel { margin-bottom: 12px; }
+    @media (max-width: 1000px) {
+      #tj-layout { grid-template-columns: minmax(0, 1fr); }
+      #tj-side { position: static; order: -1; }
+    }
+
+    #tj-map { height: 380px; border-radius: 6px; z-index: 0; }
+    #tj-summary { font-size: 0.82rem; color: #6b7280; margin-bottom: 8px; line-height: 1.5; }
+
+    .tj-table-wrap { max-height: 75vh; overflow: auto; }
+    #tj-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+    #tj-table th, #tj-table td { padding: 6px 8px; border-bottom: 1px solid #e5e7eb; text-align: left; vertical-align: top; }
+    #tj-table th { position: sticky; top: 0; background: #fff; z-index: 1; color: #6b7280; font-weight: 600;
+                   font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; white-space: nowrap; }
+    #tj-table th[data-sort] { cursor: pointer; }
+    #tj-table th.sorted::after { content: ' \25BE'; }
+    #tj-table th.sorted.asc::after { content: ' \25B4'; }
+    #tj-table td.num, #tj-table th.num { text-align: right; white-space: nowrap; }
+    #tj-table tbody tr { cursor: pointer; }
+    #tj-table tbody tr:hover { background: #f9fafb; }
+    #tj-table tbody tr.selected { background: #dbeafe; }
+    .tj-when { white-space: nowrap; }
+    .tj-sub { display: block; font-size: 0.75rem; color: #9ca3af; }
+    .tj-line { min-width: 160px; max-width: 260px; }
+    .tj-route { min-width: 160px; max-width: 270px; }
+    .tj-clip { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .tj-ref { display: inline-block; min-width: 1.6em; padding: 0 5px; margin-right: 4px; border-radius: 4px;
+              background: #374151; color: #fff; font-size: 0.75rem; font-weight: 600; text-align: center; }
+    .tj-note { font-size: 0.75rem; color: #6b7280; font-style: italic; }
+    .tj-dot { display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 5px; vertical-align: 0; }
+    .tj-spark { display: block; }
+    #tj-more { display: flex; gap: 8px; justify-content: center; margin-top: 10px; }
+
+    #tj-detail h3 { margin: 0 0 2px; font-size: 1.05rem; color: #111; line-height: 1.3; }
+    #tj-detail dl { display: grid; grid-template-columns: max-content 1fr; gap: 3px 12px; margin: 10px 0;
+                    font-size: 0.85rem; color: #374151; }
+    #tj-detail dt { color: #9ca3af; font-weight: 600; font-size: 0.75rem; text-transform: uppercase;
+                    letter-spacing: 0.04em; padding-top: 2px; }
+    #tj-detail dd { margin: 0; overflow-wrap: anywhere; }
+    #tj-detail .tj-notes-full { white-space: pre-wrap; }
+    #tj-detail-chart-wrap { height: 200px; margin-top: 6px; }
+    .tj-detail-links { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; font-size: 0.85rem; }
+    .tj-detail-links a { color: #2563eb; }
+    #tj-close { margin-left: auto; border: none; background: none; font-size: 1.1rem; color: #9ca3af; cursor: pointer; }
+    #tj-close:hover { color: #374151; }
+  </style>
+</head>
+<body>
+
+<div id="an-loading" style="display:flex">
+  <div id="an-loading-inner">
+    <span class="spinner">&#8987;</span>
+    Loading journeys&hellip;
+    <div id="an-error" style="display:none"></div>
+    <button id="an-retry-btn" style="display:none">Retry</button>
+  </div>
+</div>
+
+<nav>
+  <ul class="navbar">
+    <li class="navbar-icon">
+      <a href="https://indoorco2map.com">
+        <img src="images/icon512_512.png" alt="Indoor CO&#8322; Map" class="navbar-logo">
+      </a>
+    </li>
+
+    <div class="dropdown">
+      <button id="menu-btn" class="dropbtn">Menu</button>
+      <div class="dropdown-content">
+        <a href="analysis.html">Data Analysis (Buildings)</a>
+        <a href="transitanalysis.html">Data Analysis (Public Transit)</a>
+        <a href="stats.html">Activity Stats</a>
+        <a href="https://indoorco2map.com/frequencyMapRegions.html">Activity Map by Regions</a>
+        <a href="https://www.indoorco2map.com/blog.html">Blog</a>
+        <a href="https://indoorco2map.com/transit.html"><strong>Public Transit Journeys</strong></a>
+      </div>
+    </div>
+
+    <a href="index.html" class="navbar-back"><i class="fas fa-map-marker-alt" style="margin-right:5px"></i> Map</a>
+  </ul>
+</nav>
+
+<div id="analysis-wrap">
+  <div id="data-notice">
+    <strong>Note:</strong> This data is not a representative sample. Voluntarily contributed measurements may carry
+    various biases, potentially towards both better and worse CO&#8322; readings than typical. A journey is measured
+    for as long as the contributor stays on board, so it does not cover a whole line.
+    For aggregated comparisons see <a href="transitanalysis.html">Data Analysis (Public Transit)</a>.
+  </div>
+
+  <!-- Search and filters -->
+  <section class="an-panel">
+    <div class="an-panel-title">Search &amp; Filter</div>
+
+    <div class="filter-row">
+      <input type="search" id="tj-search" autocomplete="off"
+             placeholder="Search line, station, network, notes&hellip; e.g. &ldquo;U6 Wien&rdquo; or &ldquo;ICE&rdquo;">
+    </div>
+
+    <div class="filter-row">
+      <label class="filter-label">
+        <span>Vehicle Type</span>
+        <select id="tj-mode"><option value="">All types</option></select>
+      </label>
+      <label class="filter-label">
+        <span>Country</span>
+        <select id="tj-country"><option value="">All countries</option></select>
+      </label>
+      <label class="filter-label">
+        <span>Average CO&#8322;</span>
+        <select id="tj-aq">
+          <option value="">Any</option>
+          <option value="good">Good (&lt;800 ppm)</option>
+          <option value="moderate">Moderate (800&ndash;1400 ppm)</option>
+          <option value="unhealthy">Unhealthy (&gt;1400 ppm)</option>
+        </select>
+      </label>
+      <label class="filter-label">
+        <span>From</span>
+        <input type="date" id="tj-from">
+      </label>
+      <label class="filter-label">
+        <span>To</span>
+        <input type="date" id="tj-to">
+      </label>
+      <label class="scatter-toggle"><input type="checkbox" id="tj-notes"> Only with notes</label>
+      <button type="button" class="tj-btn" id="tj-reset">Reset</button>
+    </div>
+
+    <div class="tj-hint">
+      All search words must match (in any field, accents ignored). Dates and times are local to where the journey started.
+    </div>
+  </section>
+
+  <div id="tj-layout">
+    <!-- Journey list -->
+    <section class="an-panel">
+      <div class="an-panel-title">Journeys</div>
+      <div id="tj-summary"></div>
+      <div class="tj-table-wrap">
+        <table id="tj-table">
+          <thead><tr>
+            <th data-sort="ts">When</th>
+            <th data-sort="line">Line</th>
+            <th>From &rarr; To</th>
+            <th data-sort="dur" class="num">Duration</th>
+            <th data-sort="avg" class="num">Avg CO&#8322;</th>
+            <th>Curve</th>
+          </tr></thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div id="tj-more"></div>
+    </section>
+
+    <!-- Map and selected journey -->
+    <div id="tj-side">
+      <section class="an-panel">
+        <div class="an-panel-title">Map</div>
+        <div id="tj-map"></div>
+        <div class="tj-hint" style="margin-top:6px">
+          <span class="tj-dot" style="background:#648eff"></span>Good (&lt;800 ppm)
+          <span class="tj-dot" style="background:#ffb000;margin-left:10px"></span>Moderate (800&ndash;1400 ppm)
+          <span class="tj-dot" style="background:#ff190c;margin-left:10px"></span>Unhealthy (&gt;1400 ppm)
+          <br>Lines connect the start and end stops directly; they don't follow the actual route.
+        </div>
+      </section>
+
+      <section class="an-panel" id="tj-detail-panel" style="display:none">
+        <div class="an-panel-title">
+          Selected Journey
+          <span class="an-panel-title-actions"><button id="tj-close" title="Close">&times;</button></span>
+        </div>
+        <div id="tj-detail"></div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script src="./js/transit.js"></script>
+</body>
+</html>

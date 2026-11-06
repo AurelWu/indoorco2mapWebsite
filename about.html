@@ -4,72 +4,87 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>About the Indoor CO2 Map Project</title>
+    <link href="https://fonts.googleapis.com/css2?family=Titillium+Web:wght@400;600&display=swap" rel="stylesheet">
+    <!-- Only used when this page is opened on its own; the map's About overlay injects just the page body.
+         Don't write the literal body tag in a comment up here: the overlay finds the body by searching for it. -->
     <style>
         body {
-            font-family: Arial, sans-serif;
             margin: 0;
-            padding: 0;
-            background-color: #f4f4f4;
+            padding: 16px;
+            background-color: #f3f4f6;
+            font-family: 'Titillium Web', Arial, sans-serif;
         }
-        .container {
-            width: 80%;
-            max-width: 1200px;
-            margin: 20px auto;
-            padding: 20px;
+        .about-page {
+            max-width: 760px;
+            margin: 24px auto;
+            padding: 24px;
             background-color: #fff;
-            box-shadow: 0 0 10px rgba(0,0,0,0.1);
-        }
-        h1 {
-            text-align: center;
-            color: #333;
-        }
-        p {
-            line-height: 1.6;
-            color: #555;
-        }
-        .links {
-            margin-top: 20px;
-        }
-        .links a {
-            display: block;
-            color: #1a73e8;
-            text-decoration: none;
-            margin: 10px 0;
-        }
-        .google-play-badge {
-            display: inline-block;
-            margin-top: 10px;
-            width: 180px; /* Adjust the width as needed */
-            height: auto;
+            border-radius: 8px;
+            box-shadow: 0 1px 6px rgba(0,0,0,0.1);
         }
     </style>
 </head>
 <body>
 
+<div class="about-page">
+    <!-- Scoped to .about-page, because the map's About overlay injects this body into index.html. -->
+    <style>
+        .about-page { color: #374151; line-height: 1.6; font-size: 15px; }
+        .about-page h1 { margin: 0 0 12px; padding-right: 36px; font-size: 1.6rem; color: #111827; }
+        .about-page h2 { margin: 24px 0 8px; font-size: 1.15rem; color: #111827; }
+        .about-page p { margin: 0 0 12px; }
+        .about-page a { color: #1d4ed8; }
+        .about-page .about-cta { display: inline-block; margin: 4px 0 8px; padding: 10px 18px; border-radius: 8px;
+                                 background: #1d4ed8; color: #fff; font-weight: 600; text-decoration: none; }
+        .about-page .about-cta:hover { background: #1e40af; }
+        .about-page .about-more { font-size: 0.9rem; }
+        .about-page .store-badges { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 8px 0 16px; }
+        .about-page .store-badges a { display: inline-block; width: 180px; }
+        .about-page .store-badges img { display: block; height: auto; }
+        .about-page .store-badges img.google { width: 100%; }
+        .about-page .store-badges img.apple { width: 90%; margin-left: 5%; }
+        .about-page .about-small { font-size: 0.85rem; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 12px; margin-top: 8px; }
+    </style>
 
-    <div class="container">
-        <h1>Why measure CO2-Levels indoors?</h1>
-<h2>And how to participate</h2>
-<p>The Android and iPhone App Versions can be downloaded below:</p>
+    <h1>About the Indoor CO&#8322; Map</h1>
 
-<div class="store-badges">
-    <a href="https://play.google.com/store/apps/details?id=com.aurelwu.indoorairqualitycollector&pcampaignid=pcampaignidMKT-Other-global-all-co-prtnr-py-PartBadge-Mar2515-1">
-        <img class="google" alt="Get it on Google Play" src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png">
+    <p>We spend most of our lives indoors, yet the air in the shops, caf&eacute;s, waiting rooms and trains we use
+    every day is almost never measured, and most indoor air pollution can&rsquo;t be seen or smelt.</p>
+
+    <p>IndoorCO2Map is a global citizen science project that maps CO&#8322; levels in public indoor spaces.
+    Contributors take a portable CO&#8322; monitor along as they go about their day. The measurements show how well
+    a space is ventilated and how much of the air has already been breathed out by others: air that can carry
+    viruses and other infectious microbes.</p>
+
+    <p>All data is open, and the app is free, open source and needs no user account.</p>
+
+    <a class="about-cta" href="https://indoorco2map-project.com/" target="_blank" rel="noopener">
+        Visit indoorco2map-project.com &rarr;
     </a>
-    
-    <a href="https://apps.apple.com/us/app/indoorco2map-data-collector/id6504560820?itscg=30200&itsct=apps_box_badge&mttnsubad=6504560820">
-        <img class="apple" src="https://toolbox.marketingtools.apple.com/api/v2/badges/download-on-the-app-store/black/en-us?releaseDate=1745539200" alt="Download on the App Store">
-    </a>
-</div>
-        <p>The goal of the Indoor CO2-Map is to create a free and comprehensive crowd sourced Dataset about CO2-Levels in all kinds of non-residential buildings, i.e. shops, hospitals, cinemas and many more. The concentration of CO2 Levels is in most settings a reliable indicator for the share of exhaled air, that is air which has been exhaled by persons. A higher concentration correlates with a higher risk of inhaling aerosols containing infectious agents.</p>
-        <p>By collecting these data, people who want to reduce their risk of infections can make informed decisions about their everyday choices. If the amount of measurements becomes high enough it might also serve as data source or starting point for scientific analysis.</p>
-        <p>It might also allow initiatives campaigning for better indoor air quality to strengthen their arguments by showing the variability in air quality in different buildings of the same type which indicates both the feasibility to ensure good air as well as the failure in many cases to do so.</p>
-        <p>Anyone who has a mobile phone and a supported mobile CO2-Monitor can participate in the data collection. Currently the Aranet4, Airvalent, AirSpot and Inkbird IAM-T1 Sensors are supported</p>
-        <p>Every single Measurement is useful, both in previously unmeasured locations as well as in locations measured. If you own a compatible monitor you are invited to join. <b>The App does not need a user registration!</b></p>
+    <p class="about-more">
+        <a href="https://indoorco2map-project.com/goals" target="_blank" rel="noopener">Our goals</a> &middot;
+        <a href="https://indoorco2map-project.com/contribute" target="_blank" rel="noopener">How to contribute</a> &middot;
+        <a href="https://indoorco2map-project.com/insights" target="_blank" rel="noopener">Insights from the data</a>
+    </p>
 
+    <h2>Take part</h2>
+    <p>All you need is a supported portable CO&#8322; monitor (currently Aranet4, Airvalent, AirSpot or
+    Inkbird IAM-T1) and the free app for Android or iPhone:</p>
 
-<p>If you think this project is worthy of your support you can do so via the following gofundme: <a href="https://www.gofundme.com/f/indoorco2mapcom-collectively-measuring-indoor-air-quality" target="_blank">gofundme for IndoorCO2Map</a>. </p>
-<p>The App is GPL licensed and the source code is available here: <a href="https://github.com/AurelWu/IndoorCO2MapApp" target="_blank">https://github.com/AurelWu/IndoorCO2MapApp</a>. </p>
+    <div class="store-badges">
+        <a href="https://play.google.com/store/apps/details?id=com.aurelwu.indoorairqualitycollector&pcampaignid=pcampaignidMKT-Other-global-all-co-prtnr-py-PartBadge-Mar2515-1" target="_blank" rel="noopener">
+            <img class="google" alt="Get it on Google Play" src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png">
+        </a>
+        <a href="https://apps.apple.com/us/app/indoorco2map-data-collector/id6504560820?itscg=30200&itsct=apps_box_badge&mttnsubad=6504560820" target="_blank" rel="noopener">
+            <img class="apple" src="https://toolbox.marketingtools.apple.com/api/v2/badges/download-on-the-app-store/black/en-us?releaseDate=1745539200" alt="Download on the App Store">
+        </a>
     </div>
+
+    <p class="about-small">
+        Source code: <a href="https://github.com/AurelWu/IndoorCO2MapApp" target="_blank" rel="noopener">GitHub</a> (GPL licensed)
+        &middot; Support the project: <a href="https://www.gofundme.com/f/indoorco2mapcom-collectively-measuring-indoor-air-quality" target="_blank" rel="noopener">GoFundMe</a>
+    </p>
+</div>
+
 </body>
 </html>

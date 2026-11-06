@@ -1,80 +1,81 @@
 # The goals of IndoorCO2Map.com
 
-IndoorCO2Map is a citizen science project which ultimately has one goal: to improve the quality of indoor air across the world. Better indoor air slows the spread of disease. It improves wellbeing and helps people think more clearly.
+*Updated on 2 November 2026.*
 
-We spend almost all of our lives indoors, most of us around 90% of the time. Much of that time is spent breathing air in buildings we share with other people and often has dubious quality. As most indoor air pollution is invisible and has no smell, so we rarely think about it.
+IndoorCO2Map is a citizen science project which ultimately has one goal: to improve indoor air quality across the world. The benefits of better indoor air are many. To name a few: it slows the spread of infectious diseases, improves wellbeing, and helps people think more clearly.
 
-Air that other people have already breathed can carry microbes. In a badly ventilated room, the risk of infectious persons passing an illness to someone sitting many metres away strongly increases, and as it can linger in the air for many minutes the risk does not end the moment they leave. Stale air also makes people tired, gives them headaches and makes it harder to think clearly.
+We spend almost all of our lives indoors, most of us around 90% of the time. Much of that time is spent breathing air in buildings we share with other people and that air often has dubious quality. However, we rarely think about it as most indoor air pollution is neither seen nor smelt.
 
-## Why measure CO₂ in Buildings and public Transit?
+Air that other people have already breathed can carry microbes. In a badly ventilated room, the risk of infectious persons passing an illness to someone sitting many metres away strongly increases, and as pathogens can linger in the air for many minutes the risk does not end the moment they leave. Stale air also makes people tired, gives them headaches and makes it harder to think clearly.
 
-At its core, the project relies on one action done collectively as a community: measuring public spaces with a CO₂ monitor and adding the data to a free, open, global map through a free and open-source app. The app is designed with privacy in mind and does not need a user account.
+## Why Measure Indoor CO₂?
 
-CO₂ works well as a proxy for the amount of rebreathed air. People breathe it out continuously, and affordable sensors can measure it reliably. Outdoor air currently contains around 420 ppm. Anything above the local outdoor level in a room has been added indoors, and in most shared spaces the people inside are the main source.
+We measure CO₂ because it serves as a good proxy for the amount of rebreathed air in an indoor space. This matters because exhalations carry not only CO₂ but also viruses and bacteria. In a badly ventilated room, exhaled air builds up and the CO₂ level rises with it, so a higher reading means more of the air has already been breathed by other people. If anyone in the room is infectious, more rebreathed air means a higher risk of infection for everyone else.
 
-The more exhaled air remains in the room, the higher the CO₂ level climbs. Exhaled breath contains around 40,000 ppm, which means that every additional 400 ppm above the outdoor baseline therefore corresponds roughly to one percentage point of rebreathed air. At 2,500 ppm, a value often reached in schools and other badly ventilated places, a little more than 5% of the room air has already been in someone else's lungs.
+CO₂ levels are measured in parts per million (ppm), meaning how many parts of the air are CO₂. Outdoor air currently contains around 420 ppm of CO₂, although levels vary slightly with location, season and nearby sources such as traffic.
 
-How risky that rebreathed air is depends on whether anyone is infectious, how long people stay in the room and what they are doing. Quiet breathing generally releases fewer infectious particles than talking. Shouting and singing release far more. So 2,500 ppm in a silent cinema is not the same as 2,500 ppm during a choir rehearsal or in a loud bar. Within similar circumstances, however, the readings are comparable.
+In an indoor space, anything above the local outdoor level comes from indoor sources, the main one being human respiration in most circumstances. Exhaled breath contains around 40,000 ppm of CO₂, so every 400 ppm above the outdoor level means roughly 1% of the room air has already been breathed out by someone.
 
-In some situations, other CO₂ sources can influence the result. A gas hob, an open flame, an engine or a fermenting tank all release CO₂. In most ordinary shared spaces, however, humans are the only relevant source.
+At 2500 ppm, a value often reached in schools and other badly ventilated places, a little more than 5% of the room air has already been in someone else's lungs.
 
-CO₂ data also has clear limits. It tells you about rebreathed air, but it says nothing about filtration, which can remove particles without changing the CO₂ level at all. It says nothing about outdoor pollution or about indoor pollutants produced by activities such as cooking and printing. However good ventilation dilutes many of these pollutants as well, so there is some correlation. In summary, while CO₂ should not be treated as a complete measurement of indoor air Quality, it provides a lot of useful Information.
+People aren’t the only source, though, because gas or wood stoves, fireplaces, candles and dry ice also emit CO₂ and raise the level in rooms where they’re used.
 
-## Showing the feasibility of good air quality in buildings
+Normal breathing generally releases fewer infectious particles than talking. Shouting and singing release far more. So 2500 ppm in a silent cinema is not the same as 2500 ppm during a choir rehearsal or in a loud bar. CO₂ readings are most meaningfully compared between settings with similar activities.
 
-Historically, indoor air has hardly been measured at all. What research exists has concentrated on schools, homes and hospitals, and even there it amounts to isolated and sparse studies rather than comprehensive large-scale surveys. For the shops, cafés, gyms, waiting rooms, offices and trains people use every day, there was very little data before IndoorCO2Map.com started. Taking stock of those places is the first goal, and the record grows with every measurement. Close to 30,000 measurement series have been submitted as of July 2026 since the project began in 2024.
+CO₂ data has clear limits. It tells us about rebreathed air, but says nothing about filtration, which can remove particles without altering CO₂ levels. It also doesn't directly measure other indoor or outdoor pollutants. Fortunately, good ventilation dilutes both rebreathed air and many airborne pollutants, so CO₂ levels can serve as a rough indicator of how well indoor air is being diluted.
 
-The measurements already show how wide the range is. Some categories of locations like fast food restaurants, large DIY-stores or clothing shops have mostly low CO₂ levels, while doctor's offices and pubs often have high CO₂ levels. But every category has at least some locations with great air quality.
+While CO₂ measurements don't tell the whole story of indoor air quality, they make ventilation conditions visible. By collecting and comparing readings across public spaces, we can assess the current state, identify where ventilation may be inadequate, and build an evidence base for improvement.
 
-Within almost every type of building, some locations provide good air while others perform very badly, some are always good, some never and some sometimes. Even virtually identical buildings, like different supermarkets from the same chain built in exactly the same way, can have totally different CO₂ levels.
+## Feasibility of Good Indoor Air Quality
 
-These supermarkets point to something simple. If two shops of the same design, running the same business, end up far apart, the difference is most likely in the ventilation settings. In those cases the improvement needs no retrofit and no new system, only a different setting. That can increase energy demand slightly. But the locations that already ventilate well are still in business, so the extra energy cannot be a deciding factor. A back of the envelope calculation puts it at a few cents per customer at most.
+Historically, indoor air has hardly been measured at all. Existing research focuses on schools, homes and hospitals. Even then, studies are isolated and sparse. Before the inception of IndoorCO2Map.com, there was very little data for places that people frequent every day: shops, cafés, gyms, waiting rooms, offices and public transit. As of November 2026, around 33,000 measurements have been submitted since the project’s inception in 2024.
 
-## Helping people make informed decisions
+These measurements already show how wide the range of CO₂ levels in different locations is. With some exceptions, fast food restaurants, large hardware stores and clothing shops tend to have mostly low CO₂ levels, while doctor's offices and pubs often have high CO₂ levels. But every category has at least some locations with great air quality.
 
-The second goal is to give individuals information they currently do not have.
+Air quality can vary even within the same building type. Even virtually identical buildings, such as different supermarkets from the same chain built in exactly the same way, can have totally different CO₂ levels. The same place can also differ from one visit to the next: some locations have good air every time they’re measured, some never do and some only sometimes.
 
-You can usually see whether a restaurant is clean, whether a train is crowded or whether a shop is accessible. You cannot see how much of the air has already been breathed by other people. A room can look pleasant and smell completely normal while being very poorly ventilated.
+This suggests that in these cases the difference is most likely due to how the ventilation systems are operated. Improving the air there needs no retrofit and no new system, only running the existing ventilation system differently. That can increase energy demand slightly. But the locations that already ventilate well are still in business, so the extra energy cannot be a deciding factor. A back-of-the-envelope calculation puts it at a few cents per supermarket customer at most.
 
-IndoorCO2Map helps in two ways. The direct one is a measurement from the place itself. If your local café, gym or supermarket has been measured, you have at least some idea of what to expect and can measure it again yourself.
+## Helping People Make Informed Choices
 
-The data so far shows that many doctors' offices have poor air quality. People who are likely to be infectious sit in the same room as people who are likely to be vulnerable. Both groups are there in order to get better. For some people that is a good reason to wear a mask at the doctor's, even if they would not wear one anywhere else.
+Our project aims to give people around the world open access to data that helps them make more informed choices about where they spend their time indoors. You can usually see whether a restaurant is clean or whether a train is crowded or whether a shop is accessible. However, a room can look and smell perfectly normal while being very poorly ventilated.
 
-An indirect benefit comes from patterns across many measurements. With enough data, people can see which kinds of venue tend to be badly ventilated, which chains appear to manage their ventilation well and how strongly readings vary with the season or time of day. That gives useful rules of thumb even for the thousands of rooms that have never been measured.
+IndoorCO2Map keeps you informed in two ways. The first is through CO₂ measurements recorded by previous visitors to a location. This gives you an idea of what to expect, and you can add your own measurements, too.
 
-The map should not be read as a safety rating. One reading is only one moment. Occupancy changes, windows open and close, and ventilation settings can be adjusted. A room that performed well on a quiet morning may be bad on a busy Saturday afternoon. CO₂ is also only one part of indoor air quality.
+The second is by identifying patterns across multiple measurements. With enough data, we can see which types of places tend to have poor ventilation, which chains appear to manage ventilation well, and how readings vary by season or time of day. That gives useful rules of thumb even for all the locations that have never been measured.
 
-But imperfect information is not the same as useless information. The map cannot tell someone that a building is guaranteed to be safe but it can move the decision from complete guesswork towards an informed judgement. At the moment, most people have nothing at all to go on. And while a single good reading does not tell you too much, a single bad reading already tells you that the air in that location is at least sometimes bad.
+Our data, for example, suggests that doctors’ offices tend to have poor air quality. This is particularly concerning because people visiting a doctor may be infectious, while others in the same space may be especially vulnerable to infection.
 
-## Providing Open Data
+It’s important to note that CO₂ measurements, and the map itself, are not safety ratings. Readings represent singular snapshots, and both CO₂ and air quality fluctuate over time. A café with a lower reading of 600 ppm on a weekday morning may rise to 1800 ppm on a busy afternoon. CO₂ is also only one part of indoor air quality.
 
-IndoorCO2Map collects a kind of data that no institution has so far managed to build at a large scale: measurements from the ordinary publicly accessible buildings and public transport people use every day.
+But incomplete information is not the same as useless information. Let’s say you’re thinking of seeing a show at a nearby theatre. While a single reading of low CO₂ from three weeks ago won’t tell you about the air quality on the night you arrive, a single reading of high CO₂ (say, 3000 ppm) tells you that the air quality at that location does get bad at least sometimes. Perhaps they don’t have adequate ventilation. From there, you can make an informed decision.
 
-Measuring these places through a conventional research project is slow and expensive. Each location needs a sensor, the owner's permission, money for installation and someone to retrieve and maintain the equipment. That is manageable for a study covering a few dozen buildings, but not for hundreds of thousands of everyday locations. The result is a collection of valuable but scattered case studies rather than a broad picture of the indoor air people actually breathe.
+## Sharing Open Data
 
-Crowdsourcing changes what is practical. The person already sitting in a café, shopping in a supermarket or travelling on a train can take the measurement. One person cannot map a country, but thousands of people measuring a few places each can.
+IndoorCO2Map collects data that no institution has yet managed to gather at scale: CO₂ measurements from the everyday public spaces and public transport people use.
 
-IndoorCO2Map already contains around 30,000 measurements from over 11,000 locations in more than 30 countries. Because the approach is decentralised and requires little maintenance, the dataset can continue growing for years at a very low cost per additional measurement.
+Measuring these places through a conventional research project is slow and expensive. Each location needs a sensor, the owner's permission, money for installation and someone to retrieve and maintain the equipment. That is manageable for a study covering a few dozen buildings, but not for hundreds of thousands of everyday locations. Because of these hurdles, research so far has produced a collection of valuable but scattered case studies rather than a broad picture of the indoor air people actually breathe.
 
-Building this dataset is not a goal in itself. Its value lies in the insights it makes possible. It can show how indoor CO₂ differs between countries, building types, seasons, times of day and commercial brands. It can help investigate whether particular communities are systematically exposed to worse indoor air, identify places and patterns that deserve closer study and provide an additional input for epidemiological research.
+Thankfully, IndoorCO2Map is built through crowdsourced measurements. One person can’t map a country, but thousands of people measuring a few places each can.
 
-Crowdsourced data naturally has weaknesses: measurements are not evenly distributed, and each one captures just a particular place at a particular time and for types of buildings the data will not be representative or very sparse. The dataset will therefore not replace controlled studies, but complement them. Its scale makes it possible to investigate questions that smaller studies cannot.
+Our map currently has around 33,000 measurements from over 12,000 locations in more than 30 countries. Because the approach is decentralised and requires little maintenance, the dataset can grow continuously and at significantly lower cost than multiple conventional research projects.
 
-All of the data is openly available under a free license without any fees, individual agreement or complicated access procedure. IndoorCO2Map cannot answer every relevant research question itself, and it should not try to. Researchers can combine the measurements with their own data and methods. Building scientists can study ventilation performance, aerosol researchers can examine patterns of rebreathed air, and epidemiologists can include indoor conditions as an additional parameter when studying the spread of respiratory disease.
+Building this dataset is not a goal in itself. Its value lies in the insights it makes possible. It can reveal how indoor CO₂ levels vary between countries, building types, seasons, times of day and commercial brands. It can help identify groups of people and types of places that may be disproportionately exposed to poor ventilation, highlight patterns warranting closer investigation, and provide additional data for epidemiological research.
+
+Crowdsourced datasets are not replacements, but rather complements, to controlled studies. Their scale is what enables insights that smaller studies can’t on their own.
+
+IndoorCO2Map’s data is available under a free licence. Researchers can combine the measurements with their own data and methods.
 
 Open data also makes the project itself more useful and more accountable. Other people can reproduce analyses, find errors, challenge assumptions and build tools that IndoorCO2Map would never have the capacity to develop on its own.
 
-The same data layer can therefore serve individuals, communities, scientists and policymakers without being rebuilt separately for each purpose.
+By making the data freely available, we allow different people to use it for different purposes: from helping individuals make informed decisions about the spaces they use to supporting scientific research and informing policy.
 
-## Estimating what good air everywhere would cost
+## Estimate The Cost of Good Air
 
-For policy change it is important to have an estimate of how expensive improving the air quality would be, and exactly this can be done by using the measured state of ventilation as a starting point for calculating what is needed to get everything to good air quality.
+For policy change, it is important to estimate how much it would cost to improve indoor air quality. Our measurements provide a starting point for estimating what would be needed to bring buildings up to a reasonable standard.
 
-Extrapolating from the measurement data and combining it with information about building types, occupancy, climate, energy use, ventilation technologies and investment costs for ventilation systems, this can be used to estimate what it would take to bring the remaining buildings up to a reasonable standard.
+By combining the data with information on building types, occupancy, climate, energy use, ventilation technologies and installation costs, we can estimate the investments needed to improve ventilation across the building stock.
 
-Such a model could calculate capital and running costs by building type and region, along with the effects on energy demand and carbon emissions. It could show which interventions deliver the largest improvements under a limited budget and which sectors should be addressed first. It could also distinguish between buildings that mainly need better operation of existing systems and those that require substantial investment.
+Using this data, we could develop a model to calculate capital and running costs by building type and region, along with the effects on energy demand and carbon emissions. It could show which interventions deliver the largest improvements under a limited budget and which sectors should be addressed first. It could also distinguish between buildings that mainly need better operation of existing systems and those that require substantial investment.
 
-The purpose is to make the case for "better indoor air" concrete enough to regulate and budget for, even if the calculations initially will be just a rough estimate.
-
-Energy efficiency and ventilation also are not mutually exclusive as CO₂ monitoring and demand-controlled ventilation can help buildings provide fresh air when rooms are occupied without ventilating empty rooms unnecessarily. Heat recovery can reduce the remaining energy cost. Measurement allows us to avoid both harmful underventilation and wasteful overventilation. 
-
+The purpose is to make the case for "better indoor air" concrete enough to regulate and budget for, even if initial calculations would be rough estimates.
